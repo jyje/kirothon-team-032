@@ -1,4 +1,4 @@
-"""SQLite 연결. 저널 모드(기본 WAL)와 busy_timeout을 켜고, 테이블을 만드는 초기화 함수를 제공한다."""
+"""SQLite 연결. 저널 모드(기본 WAL)와 busy_timeout을 켜고 테이블을 만드는 초기화 함수를 둔다."""
 
 from __future__ import annotations
 
