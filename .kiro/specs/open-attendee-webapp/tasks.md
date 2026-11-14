@@ -113,7 +113,7 @@
     - EXIF 회전을 픽셀에 반영하고, HEIC는 JPEG로 변환하며, 긴 변 2048px 이하로 줄이고 긴 변 400px 축소판을 만든다. 깨진 파일은 예외로 알린다.
     - _Requirements: 3.3, 3.4, 3.5, 3.6, 3.7, 3.8_
 
-  - [ ]* 5.4 Property 5 속성 테스트: EXIF 제거
+  - [x]* 5.4 Property 5 속성 테스트: EXIF 제거
     - **Property 5: EXIF 제거**
     - 임의의 크기와 GPS를 포함한 EXIF를 가진 이미지를 만들어 `sanitize` 결과를 다시 열었을 때 EXIF가 비어 있는지, `Asset` 모델에 위치 정보 열이 없는지 확인한다.
     - **Validates: Requirements 3.3, 3.4**
