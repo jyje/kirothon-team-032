@@ -1,0 +1,21 @@
+# 이미지에 들어가면 안 되는 것: 비밀, 로컬 데이터, 가상환경, 캐시
+.git
+.worktrees
+.kiro
+.agents
+**/.env
+**/.env.*
+!**/.env.example
+**/data
+**/.venv
+**/node_modules
+**/dist
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.hypothesis
+**/*.egg-info
+# 이미지에 필요 없는 문서와 발표 자료
+docs
+records
+slidev
