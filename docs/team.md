@@ -1,7 +1,7 @@
 # 팀 구조
 
 - 상태: 초안. 각 Bot이 자기 역할을 확인해 채웁니다.
-- 기준 저장소: `kirothon-team-032` (`/Users/jyje/repo/jyje/kirothon-team-032`)
+- 기준 저장소: `open-attendee` (해커톤 제출 당시 이름은 `kirothon-team-032`)
 - 팀 번호: `team-032` (레포 이름에서 확인. 명찰 번호와 같은지 확인 필요)
 - 팀명: Studio.R4iny (1인팀)
 
