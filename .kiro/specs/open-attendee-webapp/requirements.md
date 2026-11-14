@@ -1,5 +1,7 @@
 # Requirements Document
 
+> **변경 메모 (2026-11-14):** 화면은 Jinja2와 HTMX 대신 **Vue 3 + Vite**(`webapp/frontend/`)로 만들고, 서버는 `/api/...` JSON API만 낸다. 빌드된 화면(`frontend/dist`)은 FastAPI가 서빙한다. 아래 본문에서 Jinja2, HTMX, "서버 렌더링 화면"을 말하는 부분은 이 결정으로 대체된다(본문은 리뷰 때 함께 고친다). 배포는 `docker/Dockerfile`(다단계), `docker-compose.yml`, `helm/`이고 클러스터의 기본 저장소가 NFS라서 `SQLITE_JOURNAL_MODE=delete`를 쓴다(요구사항 27.9의 WAL은 기본값으로만 남는다). 자세한 내용은 `docs/deploy.md`.
+
 ## Introduction
 
 이 문서는 `design.md`(Open Attendee 웹앱 설계 초안)에서 요구사항을 뽑아 정리한 것입니다. Open Attendee는 밋업, 학회, 이벤트, 미팅에 참석한 사람이 필기, 사진, 발표자료, 참고자료, 동의된 녹음을 한 세션에 모으고, AI가 출처가 붙은 초안을 만들면 사람이 검토하고 승인한 뒤 내보내는 웹앱입니다.
