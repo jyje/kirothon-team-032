@@ -21,3 +21,4 @@ out/
 # 기타
 .DS_Store
 *.log
+*.egg-info/
