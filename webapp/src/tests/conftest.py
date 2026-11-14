@@ -14,10 +14,13 @@ import pytest
 from argon2 import PasswordHasher
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
+from sqlmodel import Session
 
 from open_attendee.config import Settings
 from open_attendee.db import init_db, make_engine
 from open_attendee.main import create_app
+from open_attendee.sessions import SessionService
+from open_attendee.storage import LocalBlobStore
 
 OWNER_PASSWORD = "correct-horse-battery"
 # 테스트가 느려지지 않게 비용을 최소로 낮춘 진짜 argon2 해시.
@@ -85,3 +88,19 @@ def auth_client(client: TestClient) -> TestClient:
     token = login(client)
     client.headers["X-CSRF-Token"] = token
     return client
+
+
+@pytest.fixture
+def blobs(settings: Settings) -> LocalBlobStore:
+    return LocalBlobStore(settings.data_dir / "blobs")
+
+
+@pytest.fixture
+def db(engine: Engine) -> Iterator[Session]:
+    with Session(engine) as session:
+        yield session
+
+
+@pytest.fixture
+def sessions(db: Session, blobs: LocalBlobStore) -> SessionService:
+    return SessionService(db, blobs)
