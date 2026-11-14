@@ -11,7 +11,8 @@ import contextlib
 import io
 import re
 import warnings
-from collections.abc import Iterator
+from bisect import bisect_left
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone, tzinfo
 from struct import error as struct_error
@@ -21,9 +22,11 @@ import pillow_heif
 from PIL import Image, ImageCms, ImageFile, ImageOps, UnidentifiedImageError
 
 from open_attendee.errors import ValidationFailed
+from open_attendee.models import Asset, MemoBlock
 
 pillow_heif.register_heif_opener()
 
+LINK_WINDOW: Final = timedelta(minutes=5)  # 사진과 메모를 같은 때로 보는 시간 차(요구사항 5.1)
 MAX_LONG_SIDE: Final = 2048  # 저장하는 사진의 긴 변 상한(요구사항 3.7)
 THUMBNAIL_LONG_SIDE: Final = 400  # 축소판의 긴 변
 JPEG_QUALITY: Final = 88
@@ -159,6 +162,55 @@ class PhotoProcessor:
             height=main.height,
             captured_at=captured_at,
         )
+
+    def link_photos(
+        self, photos: Iterable[Asset], blocks: Iterable[MemoBlock], window: timedelta = LINK_WINDOW
+    ) -> dict[str, str | None]:
+        return link_photos(photos, blocks, window)
+
+
+# ---------------------------------------------------------------------------- 사진과 메모 연결
+
+
+def to_utc(moment: datetime) -> datetime:
+    """UTC로 정규화한다. 시간대가 없는 시각은 UTC로 본다(요구사항 5.5)."""
+    if moment.tzinfo is None:
+        return moment.replace(tzinfo=UTC)
+    return moment.astimezone(UTC)
+
+
+def link_photos(
+    photos: Iterable[Asset], blocks: Iterable[MemoBlock], window: timedelta = LINK_WINDOW
+) -> dict[str, str | None]:
+    """사진마다 시각 차이가 가장 작은 메모 블록을 고른다. 결과는 `{사진 ID: 블록 ID 또는 None}`.
+
+    - 기준 시각은 촬영 시각이고 없으면 업로드 시각이다. 모든 시각은 UTC로 맞춰 비교한다.
+    - 차이가 `window` 이하인 블록만 후보다. 후보가 없으면 `None`.
+    - 차이가 같으면 작성 시각이 앞선 블록을 고른다(시각까지 같으면 화면 순서가 앞선 블록).
+    - 사용자가 직접 지정한 사진(`link_manual`)은 계산하지 않고 지금의 연결을 그대로 돌려준다.
+    """
+    ordered = sorted(blocks, key=lambda b: (to_utc(b.created_at), b.position, b.id))
+    times = [to_utc(b.created_at) for b in ordered]
+    result: dict[str, str | None] = {}
+    for photo in photos:
+        if photo.link_manual:
+            result[photo.id] = photo.linked_block_id
+            continue
+        moment = to_utc(photo.captured_at or photo.created_at)
+        right = bisect_left(times, moment)  # moment 이상인 첫 블록. 같은 시각 중 가장 앞선 블록
+        candidates: list[int] = []
+        if right < len(ordered):
+            candidates.append(right)
+        if right > 0:
+            # moment보다 앞선 블록 중 가장 가까운 시각의 무리에서 가장 앞선 블록
+            candidates.append(bisect_left(times, times[right - 1]))
+        best: tuple[timedelta, int] | None = None
+        for index in candidates:
+            gap = abs(times[index] - moment)
+            if gap <= window and (best is None or (gap, index) < best):
+                best = (gap, index)
+        result[photo.id] = ordered[best[1]].id if best else None
+    return result
 
 
 # ---------------------------------------------------------------------------- 이미지 도우미
