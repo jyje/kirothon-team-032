@@ -14,7 +14,7 @@ from open_attendee.errors import ValidationFailed
 from open_attendee.models import ConsentRecord
 from open_attendee.web.deps import Owner, get_db
 
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
 
 def get_consent_gate(db: Annotated[Session, Depends(get_db)]) -> ConsentGate:

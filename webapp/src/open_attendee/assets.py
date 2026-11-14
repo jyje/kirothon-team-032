@@ -45,7 +45,7 @@ from open_attendee.models import (
     TranscriptSegment,
 )
 from open_attendee.processors.docs import DocExtractor
-from open_attendee.processors.photo import PhotoProcessor
+from open_attendee.processors.photo import PhotoProcessor, link_photos
 from open_attendee.storage import BlobStore, make_key
 
 MB: Final = 1024 * 1024
@@ -384,6 +384,23 @@ class AssetService:
         self.db.commit()
         self.db.refresh(asset)
         return asset
+
+    def relink_photos(self, owner_id: str, session_id: str) -> dict[str, str | None]:
+        """사진 연결을 다시 계산해 저장한다. 직접 지정한 연결은 그대로 둔다(요구사항 5.6)."""
+        self._session(owner_id, session_id)
+        photos = list(
+            self.db.exec(
+                select(Asset).where(Asset.session_id == session_id, Asset.kind == AssetKind.PHOTO)
+            )
+        )
+        blocks = list(self.db.exec(select(MemoBlock).where(MemoBlock.session_id == session_id)))
+        links = link_photos(photos, blocks)
+        for photo in photos:
+            if photo.linked_block_id != links[photo.id]:
+                photo.linked_block_id = links[photo.id]
+                self.db.add(photo)
+        self.db.commit()
+        return links
 
     def set_link(
         self, owner_id: str, session_id: str, asset_id: str, block_id: str | None

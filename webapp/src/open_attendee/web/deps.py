@@ -13,7 +13,9 @@ from fastapi import Depends, Request
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session
 
+from open_attendee.assets import AssetService
 from open_attendee.auth import csrf_token_for, current_owner
+from open_attendee.config import Settings
 from open_attendee.sessions import SessionService
 from open_attendee.storage import BlobStore
 
@@ -54,6 +56,18 @@ def get_session_service(
     return SessionService(db, blobs)
 
 
+def get_settings(request: Request) -> Settings:
+    return request.app.state.settings
+
+
+def get_asset_service(
+    db: Annotated[Session, Depends(get_db)],
+    blobs: Annotated[BlobStore, Depends(get_blobs)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AssetService:
+    return AssetService(db, blobs, settings)
+
+
 def is_htmx(request: Request) -> bool:
     return request.headers.get("HX-Request") == "true"
 
@@ -64,3 +78,5 @@ def wants_json(request: Request) -> bool:
 
 Owner = Annotated[str, Depends(get_owner)]
 Sessions = Annotated[SessionService, Depends(get_session_service)]
+Assets = Annotated[AssetService, Depends(get_asset_service)]
+AppSettings = Annotated[Settings, Depends(get_settings)]

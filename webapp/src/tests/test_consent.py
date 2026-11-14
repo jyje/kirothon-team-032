@@ -149,13 +149,13 @@ def _session_id(client: TestClient) -> str:
 
 def test_create_and_revoke_consent_over_http(auth_client: TestClient) -> None:
     sid = _session_id(auth_client)
-    created = auth_client.post(f"/sessions/{sid}/consents", data=FORM)
+    created = auth_client.post(f"/api/sessions/{sid}/consents", data=FORM)
     assert created.status_code == 201, created.text
     body = created.json()
     assert body["obtained_on"] == "2026-11-14"
     assert body["method"] == FORM["method"]
     assert body["revoked_at"] is None
-    revoked = auth_client.post(f"/consents/{body['id']}/revoke")
+    revoked = auth_client.post(f"/api/consents/{body['id']}/revoke")
     assert revoked.status_code == 200
     assert revoked.json()["revoked_at"] is not None
 
@@ -164,7 +164,7 @@ def test_create_and_revoke_consent_over_http(auth_client: TestClient) -> None:
 def test_http_rejects_unchecked_box(auth_client: TestClient, missing: str) -> None:
     sid = _session_id(auth_client)
     res = auth_client.post(
-        f"/sessions/{sid}/consents", data={k: v for k, v in FORM.items() if k != missing}
+        f"/api/sessions/{sid}/consents", data={k: v for k, v in FORM.items() if k != missing}
     )
     assert res.status_code == 422
     assert "동의 항목" in res.json()["detail"]
@@ -174,18 +174,18 @@ def test_http_rejects_bad_date_and_unknown_session(auth_client: TestClient) -> N
     sid = _session_id(auth_client)
     assert (
         auth_client.post(
-            f"/sessions/{sid}/consents", data={**FORM, "obtained_on": "내일"}
+            f"/api/sessions/{sid}/consents", data={**FORM, "obtained_on": "내일"}
         ).status_code
         == 422
     )
-    assert auth_client.post("/sessions/nope/consents", data=FORM).status_code == 404
-    assert auth_client.post("/consents/nope/revoke").status_code == 404
+    assert auth_client.post("/api/sessions/nope/consents", data=FORM).status_code == 404
+    assert auth_client.post("/api/consents/nope/revoke").status_code == 404
 
 
 def test_consent_routes_need_login_and_csrf(auth_client: TestClient) -> None:
     sid = _session_id(auth_client)
     token = auth_client.headers.pop("X-CSRF-Token")
-    assert auth_client.post(f"/sessions/{sid}/consents", data=FORM).status_code == 403
+    assert auth_client.post(f"/api/sessions/{sid}/consents", data=FORM).status_code == 403
     auth_client.headers["X-CSRF-Token"] = token
     anonymous = TestClient(auth_client.app, base_url="https://testserver")
-    assert anonymous.post(f"/sessions/{sid}/consents", data=FORM).status_code == 401
+    assert anonymous.post(f"/api/sessions/{sid}/consents", data=FORM).status_code == 401
