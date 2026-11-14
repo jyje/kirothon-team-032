@@ -12,7 +12,7 @@
 
 밋업, 이벤트, 학회, 미팅에서 직접 기록하고 참고자료를 받아, AI로 요약해 원하는 형태로 정리하는 필기 도구입니다. 정리된 초안에 내 인사이트를 더한 뒤 최종 검토합니다. 이 프로젝트는 AWS Kiro Crew로 구성한 AI 에이전트 팀과 함께 만들었습니다.
 
-**Demo:** 배포 주소는 클러스터 배포를 마친 뒤 채웁니다. 컨테이너 이미지는 [`ghcr.io/jyje/kirothon-team-032`](https://github.com/jyje/kirothon-team-032/pkgs/container/kirothon-team-032)에 공개되어 있고, 아래 6절의 명령으로 직접 실행해 볼 수 있습니다.
+**Demo:** 배포 주소는 클러스터 배포를 마친 뒤 채웁니다. 컨테이너 이미지는 `ghcr.io/jyje/open-attendee-dev:r6-e6696b2`처럼 공개되어 있으며(최신 태그는 Actions 요약에 나옵니다), 아래 6절의 명령으로 직접 실행해 볼 수 있습니다.
 
 > **지금 구현 단계:** 기록 쪽(필기, 사진, 자료 첨부, 녹음 동의 게이트, 배포)은 동작합니다. AI 요약과 초안, 검증, 승인, 내보내기는 구현 중이거나 구현 전입니다. 기능별 상태는 2절 표에 있습니다.
 
@@ -73,8 +73,8 @@ FastAPI 서버 ─ SQLite (SQLModel) ─ 파일 저장소 (로컬 볼륨, S3는 
 
 - **녹음은 동의 기록이 있어야만 처리합니다.** 화면이 아니라 서버가 업로드와 작업 등록에서 두 번 막습니다. 본인 혼자 말한 음성 메모만 예외입니다. 지금 배포에서는 녹음 기능 자체가 꺼져 있습니다(`FEATURE_RECORDING=false`).
 - **사진의 위치 정보(EXIF)는 저장하지 않습니다.** 촬영 시각만 남깁니다.
-- 소유자 1명의 비밀번호(argon2 해시)로 로그인하고, 로그인 시도는 접속자 IP별로 분당 5회까지 받습니다. 쓰기 요청은 CSRF 토큰을 검사하고, 다른 소유자의 데이터는 "없음"으로만 응답합니다.
-- 비밀 값(API 키, 비밀번호 해시, 쿠키 서명 키)은 환경 변수와 Kubernetes Secret으로만 받고, 저장소와 이미지에는 넣지 않습니다. 로그에서는 가려서 남깁니다.
+- 소유자 1명의 비밀번호(argon2 해시)로 로그인하고, 로그인 시도는 접속자 IP별로 분당 5회까지 받으며, 쓰기 요청은 CSRF 토큰을 검사합니다.
+- 비밀 값은 환경 변수와 Kubernetes Secret으로만 받고, 저장소와 이미지에는 넣지 않으며 로그에서는 가립니다.
 
 ---
 
@@ -131,10 +131,11 @@ docker compose up --build              # http://localhost:8080
 
 ### Kubernetes (microk8s, AWS, 온프레미스)
 
-`main`에 머지되면 GitHub Actions가 amd64와 arm64 이미지를 만들어 `ghcr.io/jyje/kirothon-team-032:r<번호>-<커밋>`으로 올립니다. 그 태그로 helm 차트를 배포합니다.
+`main`(과 `dev`, `stg`, `prd`)에 머지되면 GitHub Actions가 amd64와 arm64 이미지를 만들어 `r<번호>-<커밋>` 태그로 올립니다. `main`과 `dev`는 `ghcr.io/jyje/open-attendee-dev`, `stg`는 `-stg`, `prd`는 `ghcr.io/jyje/open-attendee`입니다. 차트의 기본 이미지는 `prd`용이라서 개발 이미지는 `--set image.repository=...`로 바꿉니다.
 
 ```bash
 helm upgrade --install open-attendee ./helm -n open-attendee --create-namespace \
+  --set image.repository=ghcr.io/jyje/open-attendee-dev \
   --set image.tag=<CI가 만든 태그>
 ```
 
@@ -163,6 +164,27 @@ helm lint helm --set image.tag=test
 
 ---
 
+## 8. 현재 상태와 로드맵
+
+**구현 정도:** 기록 쪽(로그인, 행사, 필기, 사진, PDF·참고자료, 녹음 동의 게이트)은 동작하고 테스트와 CI가 있습니다. 데모의 핵심인 AI 요약, 출처가 붙은 초안, 검증, 승인, 내보내기는 아직 없습니다.
+
+**배포 환경 (반영됨)**
+- 다단계 `Dockerfile`(화면 빌드, 서버 의존성, 실행), 비루트, 8080, amd64와 arm64. 로컬용 `docker-compose.yml`.
+- `helm/`: 설정은 ConfigMap, 비밀은 미리 만든 Secret 참조, 데이터는 PVC, `/healthz` 확인, 복제본 1개.
+- CI: `ci.yml`(테스트, 린트, 화면 빌드, helm lint), `build.yml`(브랜치별 이미지, 불변 태그).
+- microk8s에 맞춘 값: 기본 저장소가 NFS라서 SQLite를 `delete` 저널로 사용, 인그레스 `nginx`와 `nginx-letsencrypt-prod`, 업로드 본문 32m, 인그레스 뒤 접속자 IP별 로그인 제한(`FORWARDED_ALLOW_IPS`).
+
+**로드맵 (아직 반영하지 않음)**
+- 클러스터에 실제 배포하고 Demo 주소 채우기. 아직 배포하지 않았습니다.
+- `dev`, `stg`, `prd` 브랜치 만들기와 환경별 helm values. 지금은 values 파일 하나입니다.
+- AI 요약, 템플릿 초안, 사실 검증, 인사이트 추가, 사람 승인, 마크다운 내보내기.
+- 녹음, STT 전사, 전사 후 원본 삭제, 동의 철회. 사진 얼굴 흐림, PPTX, HTML 내보내기.
+- S3 저장소(지금은 로컬 볼륨만), 상태 점검 명령, 정리 시간 측정.
+- 화면 자동 테스트(지금은 헤드리스 Chrome으로 수동 확인), 녹음 법률 검토, 데이터 보관 기간 정책.
+- 여러 사용자와 공유, AWS GPU 전사. 이번 범위 밖입니다.
+
+---
+
 ## 문서
 
 - 요구사항, 설계, 작업 목록: [`.kiro/specs/open-attendee-webapp/`](.kiro/specs/open-attendee-webapp)
@@ -187,7 +209,7 @@ helm lint helm --set image.tag=test
 
 | 이름 | 역할 |
 |---|---|
-| mate (Bot) | 팀장, 메인 개발자 |
+| 팀장이 (Bot) | 팀장 |
 | 정책이 (Bot) | 평가 기준, AWS 정책, 해커톤 규약 조사 <!-- 담당 확인 필요 --> |
 | 문서기 (Bot) | 기획 문서와 공지 정리 <!-- 담당 확인 필요 --> |
 | 배포기 (Bot) | 배포 <!-- 담당 확인 필요 --> |
