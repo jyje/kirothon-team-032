@@ -41,7 +41,8 @@
 | Kiro Crew 멀티 에이전트 | 역할을 나눈 Bot이 병렬로 일함 (아래 표) | `BUILD_REPORT.md`의 "AI 에이전트 역할과 성과" |
 | Kiro Crew 게이트웨이 + Tailscale | 휴대폰으로 이동 중에도 Bot에게 일을 맡기고 확인 | 위 모바일 스크린샷 |
 | 에이전트 스킬 | 디자인 시스템, 커밋 메시지 검증, README 작성 | `.agents/skills/` |
-| 작업 규칙 (steering 역할) | Bot이 작업 전에 읽는 팀 규칙 | `AGENTS.md` |
+| Steering | Kiro가 항상 읽는 팀 규칙, 제품과 행사, 보안 규칙 | `.kiro/steering/team-rules.md`, `product.md`, `security.md` (`AGENTS.md`와 같은 규칙) |
+| MCP 설정 | 프로젝트 전용. 지금은 서버 없이 비워 둠 (비밀 값 없음) | `.kiro/settings/mcp.json` |
 
 ### Kiro Crew의 Bot 역할
 
