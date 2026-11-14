@@ -53,11 +53,66 @@ BLOG_SECTIONS = [
         insight_slot=True,
     ),
 ]
+LINKEDIN_TEMPLATE_ID = "builtin-linkedin"
+LINKEDIN_SECTIONS = [
+    TemplateSection(
+        id="hook",
+        title="첫 문장",
+        instruction="이날 가장 눈에 띈 내용 하나를 한 문장으로 던진다.",
+        max_sentences=1,
+    ),
+    TemplateSection(
+        id="points",
+        title="배운 점",
+        instruction="기록에서 확인되는 배운 점을 짧은 문장으로 하나씩 쓴다.",
+        max_sentences=5,
+    ),
+    TemplateSection(
+        id="closing",
+        title="마무리",
+        instruction="기록에 근거한 한두 문장으로 맺는다. 근거 없는 홍보 문구는 쓰지 않는다.",
+        max_sentences=2,
+        insight_slot=True,
+    ),
+]
+
+
+@dataclass(frozen=True)
+class BuiltinTemplate:
+    id: str
+    name: str
+    output_kind: str  # 프롬프트에 넣는 글의 종류
+    tone: str
+    sections: list[TemplateSection]
+
+
+BUILTIN_TEMPLATES: dict[str, BuiltinTemplate] = {
+    BLOG_TEMPLATE_ID: BuiltinTemplate(
+        BLOG_TEMPLATE_ID, "블로그", "블로그 글", "차분하고 읽기 쉬운 설명체", BLOG_SECTIONS
+    ),
+    LINKEDIN_TEMPLATE_ID: BuiltinTemplate(
+        LINKEDIN_TEMPLATE_ID, "링크드인", "링크드인 게시글", "짧고 간결한 문장", LINKEDIN_SECTIONS
+    ),
+}
+
+
+class UnknownTemplate(ValueError):
+    """내장 템플릿에 없는 ID다."""
+
+
+def list_templates() -> list[dict[str, Any]]:
+    return [
+        {"id": t.id, "name": t.name, "sections": [x.title for x in t.sections]}
+        for t in BUILTIN_TEMPLATES.values()
+    ]
+
+
 AI_NOTICE = "> 이 글은 AI가 기록을 바탕으로 초안을 만들고, 사람이 검토해 승인했어요."
 NO_SOURCE_NOTE = "근거 출처가 없어요"
 NOT_SUPPORTED_NOTE = "출처가 이 문장을 뒷받침하는지 확인하지 못했어요"
 
-DRAFT_PROMPT = """당신은 행사 기록으로 블로그 초안을 쓰는 도우미입니다.
+DRAFT_PROMPT = """당신은 행사 기록으로 {output_kind} 초안을 쓰는 도우미입니다.
+문체: {tone}.
 아래 <source> 안의 내용만 근거로, 주어진 섹션별로 문장을 쓰세요.
 
 규칙:
@@ -128,10 +183,10 @@ class DraftView:
     unverified_count: int
 
 
-def _section_prompt() -> str:
+def _section_prompt(template: BuiltinTemplate) -> str:
     return "\n".join(
-        f'- id="{s.id}" 제목="{s.title}" max_sentences={s.max_sentences}: {s.instruction}'
-        for s in BLOG_SECTIONS
+        f'- id="{x.id}" 제목="{x.title}" max_sentences={x.max_sentences}: {x.instruction}'
+        for x in template.sections
     )
 
 
@@ -157,14 +212,24 @@ def _judge_support(
     return {r.index for r in out.results if r.supported and 0 <= r.index < len(rows)}
 
 
-def generate_draft(db: Session, gateway: LLMGateway, session_id: str) -> Draft:
+def generate_draft(
+    db: Session, gateway: LLMGateway, session_id: str, template_id: str = BLOG_TEMPLATE_ID
+) -> Draft:
+    template = BUILTIN_TEMPLATES.get(template_id)
+    if template is None:
+        raise UnknownTemplate(template_id)
     source_map = build_source_map(db, session_id)
     if not len(source_map):
         raise NoSources
-    prompt = DRAFT_PROMPT.format(sections=_section_prompt(), sources=render_sources(source_map))
+    prompt = DRAFT_PROMPT.format(
+        output_kind=template.output_kind,
+        tone=template.tone,
+        sections=_section_prompt(template),
+        sources=render_sources(source_map),
+    )
     out = gateway.complete_json(prompt, _GenOut)  # LLMError는 호출자가 502로 바꾼다
 
-    by_id = {s.id: s for s in BLOG_SECTIONS}
+    by_id = {x.id: x for x in template.sections}
     generated: list[tuple[str, str, list[str]]] = []  # (섹션, 문장, 유효한 라벨)
     for section in out.sections:
         spec = by_id.get(section.id)
@@ -181,8 +246,10 @@ def generate_draft(db: Session, gateway: LLMGateway, session_id: str) -> Draft:
 
     draft = Draft(
         session_id=session_id,
-        template_id=BLOG_TEMPLATE_ID,
-        template_snapshot=json.dumps([s.model_dump() for s in BLOG_SECTIONS], ensure_ascii=False),
+        template_id=template.id,
+        template_snapshot=json.dumps(
+            [x.model_dump() for x in template.sections], ensure_ascii=False
+        ),
         status=DraftStatus.IN_REVIEW,
         llm_calls=gateway.calls,
         llm_input_chars=gateway.input_chars,
@@ -252,7 +319,8 @@ def view_draft(db: Session, draft: Draft) -> DraftView:
     sentences = db.exec(
         select(Sentence).where(Sentence.draft_id == draft.id).order_by(Sentence.position)
     ).all()
-    titles = {s["id"]: s["title"] for s in json.loads(draft.template_snapshot)}
+    snapshot = {x["id"]: x for x in json.loads(draft.template_snapshot)}
+    titles = {k: v["title"] for k, v in snapshot.items()}
     order = list(titles)
     sections: list[dict[str, Any]] = []
     for section_id in order:
@@ -261,9 +329,7 @@ def view_draft(db: Session, draft: Draft) -> DraftView:
             {
                 "id": section_id,
                 "title": titles[section_id],
-                "insight_slot": next(
-                    (x.insight_slot for x in BLOG_SECTIONS if x.id == section_id), False
-                ),
+                "insight_slot": bool(snapshot[section_id].get("insight_slot", False)),
                 "sentences": [
                     {
                         "id": s.id,

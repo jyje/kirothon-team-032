@@ -6,6 +6,9 @@ import type { Draft, DraftResponse, DraftSentence } from '@/types'
 const props = defineProps<{ sessionId: string }>()
 const base = computed(() => `/api/sessions/${props.sessionId}/draft`)
 
+type TemplateInfo = { id: string; name: string; sections: string[] }
+const templates = ref<TemplateInfo[]>([])
+const templateId = ref('builtin-blog')
 const draft = ref<Draft | null>(null)
 const llmConfigured = ref<boolean | null>(null)
 const busy = ref(false)
@@ -26,6 +29,7 @@ async function load() {
   const res = await api<DraftResponse>(base.value)
   draft.value = res.draft
   llmConfigured.value = res.llm_configured
+  templates.value = (await api<{ templates: TemplateInfo[] }>('/api/templates')).templates
 }
 
 async function create() {
@@ -33,7 +37,7 @@ async function create() {
   notice.value = ''
   busy.value = true
   try {
-    const res = await api<DraftResponse>(base.value, { method: 'POST' })
+    const res = await api<DraftResponse>(base.value, { json: { template_id: templateId.value } })
     draft.value = res.draft
   } catch (e) {
     fail(e, '서버에 연결하지 못했어요.')
@@ -94,6 +98,12 @@ onMounted(load)
   <section class="panel" aria-label="초안">
     <h2>초안</h2>
     <div class="actions">
+      <label v-if="templates.length" class="picker">
+        <span>템플릿</span>
+        <select v-model="templateId" :disabled="busy || approved">
+          <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }} ({{ t.sections.join(' · ') }})</option>
+        </select>
+      </label>
       <button class="btn btn-primary" type="button" :disabled="busy || llmConfigured === false || approved" @click="create">
         {{ busy ? '초안을 만드는 중…' : draft ? '다시 만들기' : '초안 만들기' }}
       </button>
@@ -173,6 +183,8 @@ h2 { margin: 0; font-family: var(--font-hand); font-weight: 400; letter-spacing:
 h3 { margin: 0 0 var(--space-3); font-size: 18px; }
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; }
 .actions a.btn { text-decoration: none; display: inline-block; }
+.picker { display: grid; gap: var(--space-1); font-size: var(--fs-hint); color: var(--text-muted-on-dark); }
+.picker select { font: 500 var(--fs-btn-seg) var(--font-body); color: var(--color-ink); background: var(--color-white); border: var(--border); border-radius: var(--radius-pill); padding: var(--space-2) var(--space-4); min-height: 44px; max-width: 100%; }
 .hint { margin: 0; color: var(--color-lavender); font-size: var(--fs-hint); }
 .error { margin: 0; background: var(--color-purple-dark); border: var(--border); border-color: var(--color-kiro); border-radius: var(--radius-bubble); padding: var(--space-3) var(--space-4); }
 .section { display: grid; gap: var(--space-3); }

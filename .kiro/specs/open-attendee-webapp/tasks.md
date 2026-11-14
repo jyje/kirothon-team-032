@@ -11,7 +11,7 @@
 | 1~3, 4 | 완료 | 화면은 Vue, 서버는 `/api` JSON |
 | 5, 6 | 완료 | 5.9는 Vue `AssetsPanel`로 대체 |
 | 8 LLM 게이트웨이 | 완료 | `FakeProvider` 대신 `ask` 함수를 주입(`llm.py`) |
-| 9 출처 대응표, 템플릿, 초안, 검증 | **일부** (9.1, 9.7, 9.8, 9.13, 9.14 완료) | 9.2 사실 추출 단계, 9.5~9.6 템플릿 목록, 9.12 LangGraph는 미구현. 속성 테스트(9.3, 9.4, 9.9~9.11)는 Hypothesis 없이 예시 테스트만 있음 |
+| 9 출처 대응표, 템플릿, 초안, 검증 | **일부** (9.1, 9.7, 9.8, 9.13, 9.14 완료) | 9.2 사실 추출 단계, 9.12 LangGraph는 미구현. 9.5 템플릿은 내장 2개(블로그, 링크드인) 선택만 동작하고 TOML·저장·복제는 미구현. 속성 테스트(9.3, 9.4, 9.9~9.11)는 Hypothesis 없이 예시 테스트만 있음 |
 | 11 검토, 승인, 내보내기 | **일부** (11.1, 11.3, 11.6, 11.8 완료) | 11.7 설정 화면 미구현, 속성 테스트(11.2, 11.4, 11.5) 없음 |
 | 12 배포 | 완료 | `docker/Dockerfile`, `docker-compose.yml`, `helm/`, `.github/workflows/` |
 | 7 작업 큐, 워커, 이벤트 스트림 | 미착수 | 요약과 초안이 동기라서 아직 필요하지 않음 |
@@ -235,7 +235,7 @@
     - 있는 라벨과 없는 라벨이 섞인 임의의 LLM 응답에서, 대응표에 없는 라벨이 어떤 사실의 출처로도 저장되지 않고 버린 개수가 지표에 기록되는지 확인한다.
     - **Validates: Requirements 18.5, 18.9**
 
-  - [ ] 9.5 `templates.py`, `templates_builtin/*.toml`, `web/routes_templates.py`: 내장 템플릿과 목록
+  - [ ] 9.5 `templates.py`, `templates_builtin/*.toml`, `web/routes_templates.py`: 내장 템플릿과 목록 → 일부 구현: 내장 템플릿 2개(블로그, 링크드인)의 목록과 선택은 동작(`drafts.py`의 `BUILTIN_TEMPLATES`, `GET /api/templates`). TOML 파일, 저장, 복제는 미구현
     - `blog.toml`과 `linkedin.toml`을 만들고, `Template_Parser`(TOML과 `template_snapshot` JSON을 `Template`으로)와 `Template_Serializer`(`Template`을 JSON 문자열로)를 만든다. 스키마를 어긴 TOML은 파일 이름과 이유를 담은 오류를 낸다.
     - `TemplateService.list_templates`는 내장과 소유자의 템플릿을 함께 돌려주고, 내장 템플릿(`owner_id=None`) 수정은 거부한다. 섹션 1~20개, 작성 지시 1~2,000자, `max_sentences` 1~30을 검증한다.
     - 목록 라우트(`GET /templates`)를 둔다.

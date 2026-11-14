@@ -20,6 +20,10 @@ class SentencePatch(BaseModel):
     action: str | None = Field(default=None, pattern="^keep_as_opinion$")
 
 
+class DraftCreate(BaseModel):
+    template_id: str = svc.BLOG_TEMPLATE_ID
+
+
 class InsightBody(BaseModel):
     section_id: str
     text: str
@@ -43,6 +47,11 @@ def _body(db: Db, draft: Any, llm_configured: bool | None = None) -> dict[str, A
     return body
 
 
+@router.get("/templates")
+def list_templates(_owner: Owner) -> dict[str, Any]:
+    return {"templates": svc.list_templates()}
+
+
 @router.get("/sessions/{session_id}/draft")
 def get_draft(
     session_id: str, owner: Owner, sessions: Sessions, db: Db, gateway: Gateway
@@ -57,7 +66,12 @@ def get_draft(
 
 @router.post("/sessions/{session_id}/draft", response_model=None)
 def create_draft(
-    session_id: str, owner: Owner, sessions: Sessions, db: Db, gateway: Gateway
+    session_id: str,
+    owner: Owner,
+    sessions: Sessions,
+    db: Db,
+    gateway: Gateway,
+    body: DraftCreate | None = None,
 ) -> JSONResponse | dict[str, Any]:
     sessions.get(owner, session_id)
     if gateway is None:
@@ -65,7 +79,11 @@ def create_draft(
             503, "llm_not_configured", "AI 제공자가 설정되지 않았어요. API 키를 설정해 주세요."
         )
     try:
-        draft = svc.generate_draft(db, gateway, session_id)
+        draft = svc.generate_draft(
+            db, gateway, session_id, body.template_id if body else svc.BLOG_TEMPLATE_ID
+        )
+    except svc.UnknownTemplate:
+        return _error(422, "unknown_template", "알 수 없는 템플릿이에요.")
     except svc.NoSources:
         return _error(
             422, "no_sources", "초안을 만들 기록이 없어요. 메모를 쓰거나 자료를 올려 주세요."

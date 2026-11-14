@@ -195,3 +195,65 @@ def test_draft_prompt_escapes_source_delimiters(api: TestClient) -> None:
     draft_prompt = ask.calls[0]  # type: ignore[attr-defined]
     assert draft_prompt.count("</source>") == 1
     assert draft_prompt.count("<source ") == 1
+
+
+# ---------------------------------------------------------------- 템플릿 선택 (19, 21.1, 21.2)
+
+LINKEDIN_GEN = {
+    "sections": [
+        {"id": "hook", "sentences": [{"text": "Karpenter가 눈에 띄었다.", "sources": ["S1"]}]},
+        {
+            "id": "points",
+            "sentences": [{"text": f"배운 점 {i}", "sources": ["S1"]} for i in range(8)],
+        },
+        {"id": "body", "sentences": [{"text": "블로그 섹션이라 버려진다.", "sources": ["S1"]}]},
+    ]
+}
+
+
+def _linkedin_ask(prompt: str) -> str:
+    if "뒷받침되면" in prompt:
+        return json.dumps({"results": [{"index": i, "supported": True} for i in range(20)]})
+    return json.dumps(LINKEDIN_GEN)
+
+
+def test_templates_list_has_blog_and_linkedin(api: TestClient) -> None:
+    items = api.get("/api/templates").json()["templates"]
+    assert [t["id"] for t in items] == ["builtin-blog", "builtin-linkedin"]
+    assert items[1]["sections"] == ["첫 문장", "배운 점", "마무리"]
+
+
+def test_linkedin_draft_uses_its_sections_limits_and_insight_slot(api: TestClient) -> None:
+    sid = _session(api)
+    api.app.state.llm_gateway = LLMGateway(_linkedin_ask)  # type: ignore[attr-defined]
+    res = api.post(f"/api/sessions/{sid}/draft", json={"template_id": "builtin-linkedin"})
+    assert res.status_code == 200, res.text
+    draft = res.json()["draft"]
+    sections = {s["id"]: s for s in draft["sections"]}
+    assert list(sections) == ["hook", "points", "closing"]
+    assert len(sections["points"]["sentences"]) == 5  # max_sentences로 자른다
+    assert "블로그 섹션이라 버려진다." not in [s["text"] for s in _sentences(draft)]
+    assert [s["insight_slot"] for s in draft["sections"]] == [False, False, True]
+
+
+def test_draft_prompt_names_the_selected_template(api: TestClient) -> None:
+    sid = _session(api)
+    prompts: list[str] = []
+
+    def ask(prompt: str) -> str:
+        prompts.append(prompt)
+        return _linkedin_ask(prompt)
+
+    api.app.state.llm_gateway = LLMGateway(ask)  # type: ignore[attr-defined]
+    api.post(f"/api/sessions/{sid}/draft", json={"template_id": "builtin-linkedin"})
+    assert "링크드인 게시글" in prompts[0]
+    assert "문체: 짧고 간결한 문장." in prompts[0]
+
+
+def test_unknown_template_is_422_and_default_is_blog(api: TestClient) -> None:
+    sid = _session(api)
+    api.app.state.llm_gateway = LLMGateway(make_ask({0: True}))  # type: ignore[attr-defined]
+    bad = api.post(f"/api/sessions/{sid}/draft", json={"template_id": "nope"})
+    assert (bad.status_code, bad.json()["error"]["code"]) == (422, "unknown_template")
+    default = api.post(f"/api/sessions/{sid}/draft")  # 본문 없이도 블로그
+    assert [s["id"] for s in default.json()["draft"]["sections"]] == ["intro", "body", "wrap"]
