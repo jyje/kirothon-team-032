@@ -18,8 +18,8 @@ Kiro의 Spec 흐름(요구사항 → 설계 → 작업 목록 → 작업별 구�
 
 - 웹앱 구현은 [PR #5](https://github.com/jyje/kirothon-team-032/pull/5)로 `main`에 들어갔어요. 이후 [PR #7](https://github.com/jyje/kirothon-team-032/pull/7)(화면 다듬기), [PR #9](https://github.com/jyje/kirothon-team-032/pull/9)(출처가 붙는 AI 요약), [PR #10](https://github.com/jyje/kirothon-team-032/pull/10)(초안, 승인, 마크다운 내보내기)이 병합됐어요.
 - 스펙 3개 파일(`requirements.md`, `design.md`, `tasks.md`)의 `main` 반영 여부는 제출 전에 다시 확인해야 해요.
-- 갱신: 작업 목록의 모든 체크박스를 실제 구현과 맞춘 커밋(`64c803c`)이 `crew/kiro/specs-hooks-steering` 브랜치에 있어요. `main`에는 아직 없어요.
-- 같은 브랜치에 Kiro steering 문서, 비밀 파일 읽기 차단, 저장 시 린트, 작업 뒤 테스트 훅(`b5d8777`)과 "매 PR마다 `.kiro` 변경 확인" 규칙(`00a26bc`)이 있어요. 병합 전이에요.
+- 갱신: 작업 목록의 모든 체크박스를 실제 구현과 맞춘 변경이 [PR #12](https://github.com/jyje/kirothon-team-032/pull/12)로 `main`에 병합됐어요.
+- 같은 브랜치에 Kiro steering 문서, 비밀 파일 읽기 차단, 저장 시 린트, 작업 뒤 테스트 훅(`b5d8777`)과 "매 PR마다 `.kiro` 변경 확인" 규칙(`00a26bc`)도 PR #12로 병합됐어요.
 - 중간 개발 스크린샷과 기능별 증거는 [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md)에 있어요.
 
 ### 가드레일 (Kiro의 보안 규칙)
@@ -43,7 +43,7 @@ Kiro Crew에서 Bot 5개가 역할을 나눠 일했어요. 모두 사람이 검�
 |---|---|---|---|
 | 기획 (Kiro Crew) | 계획 담당. 커밋과 파일에서 확인한 것만 근거로 삼음 | 커밋 목록을 읽고 구현 단계와 마일스톤 기준으로 기획 추가안 제안. 이 `BUILD_REPORT.md`를 새 커밋에 맞춰 갱신 | 아래 "기획 현황", `BUILD_REPORT.md` |
 | 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 규칙을 꼼꼼히 읽고 근거를 붙이는 문서 담당. 확인 못 한 점은 빈칸으로 둠 | 평가 기준, 거버넌스, 보안 유의사항, 제출 전 체크리스트를 한 문서로 정리. 주최측 참가자 안내문의 점수표(1차 100점), 시간표, 주제, 행동강령으로 맞춤. Kiro 활용 증거(스크린샷 2장)와 `.kiro/steering` 3개, 정책 점검과 정정 PR | `docs/EVALUATION_GOVERNANCE_SECURITY.md`, `docs/KIRO_USAGE.md`, `.kiro/steering/` |
-| 문서기 | 정리와 기록에 강한 문서 담당. 막히면 사실대로 보고함 | slidev 발표 초안(섹션 7개, 빌드 성공), 스킬 2개 가져오기, 커밋 10개와 병합된 PR #1, `AGENTS.md` 규칙 작성. 발표 초안은 이후 PR #11에서 구현에 맞게 다시 쓰이는 중 | `slidev/`, `AGENTS.md`, `.agents/skills/` |
+| 문서기 | 정리와 기록에 강한 문서 담당. 막히면 사실대로 보고함 | slidev 발표 초안(섹션 7개, 빌드 성공), 스킬 2개 가져오기, 커밋 10개와 병합된 PR #1, `AGENTS.md` 규칙 작성. 발표 초안은 이후 PR #11에서 구현에 맞게 다시 쓰여 병합됨 | `slidev/`, `AGENTS.md`, `.agents/skills/` |
 | AI마니아 | 모델 공급자 관리자. 키와 약관 위험을 신중히 따짐 | Strands SDK로 Bedrock·OpenAI·Codex를 공급자 설정만으로 전환. OpenAI와 Codex 실제 호출 성공, 시험 21개 통과 | `provider-manager/` |
 | 디자이니 | 디자인 담당. 근거 없는 추측은 적어 둠 | 디자인 토큰과 규칙, 스토리보드, Cloudscape 토큰 571개 변환, 디자인 스킬. PR #2 병합 | `design-system/`, `docs/references/cloudscape/`, `.agents/skills/kirothon-design-system/` |
 | 배포기 | 배포 담당. 막힌 도구는 우회하지 않고 명령을 남김 | 임시 Helm 차트와 Dockerfile로 시작해 `helm lint`, `docker build` 성공. 이후 `jyje/cluster`의 mungchilog 방식(환경별 브랜치, Argo CD, Image Updater)으로 dev·stg·prd 배포 구성. 도메인 CNAME 3개 생성. 영어로만 쓰는 규칙은 `jyje/cluster` 전용으로 기억함 | `docker/`, `helm/`, `.github/workflows/build.yml`, `jyje/cluster` |
@@ -102,7 +102,7 @@ Kiro 활용 증거와 중간 개발 스크린샷은 [`docs/KIRO_USAGE.md`](docs/
 | M1 기반 문서 | README, 디자인 스토리보드, 평가·거버넌스·보안 문서, Kiro 활용 증거 | PR #1~#4 | 끝남 |
 | M2 웹앱 | Vue 화면, 로그인, 메모, 사진, CI, Helm 배포 | PR #5, #6 | 끝남 |
 | M3 핵심 기능 | 화면 다듬기, README 현황, 출처가 붙는 AI 요약, 초안과 승인 | PR #7~#10 | 끝남 |
-| M4 제출 준비 | 발표자료 PDF, steering과 훅, 출처·라이선스 표기, 제출 체크리스트 표시 | PR #11 (열림), `crew/kiro/specs-hooks-steering` | 진행 중 |
+| M4 제출 준비 | 발표자료 PDF, steering과 훅, 출처·라이선스 표기, 제출 체크리스트 표시 | PR #11, #12 (병합) | 끝남. 남은 일은 제출 폼 입력 |
 
 - 아직 안 함: `stg`, `prd` 이미지 빌드, 클러스터 `Healthy` 확인, Bedrock 실제 호출, 서울 주최측 점수표 반영.
 - 확인 못 한 것: 기획 추가안이 사람의 승인을 받았는지. 승인 전에는 작업 목록에 넣지 않았어요.
@@ -141,9 +141,9 @@ Kiro 활용 증거와 중간 개발 스크린샷은 [`docs/KIRO_USAGE.md`](docs/
 ### 문서기 현황 (갱신: 2026-11-14)
 
 - 끝남: slidev 초안과 빌드, 스킬 2개 가져오기, 커밋 10개와 [PR #1](https://github.com/jyje/kirothon-team-032/pull/1), `AGENTS.md` 규칙. PR #1은 사람이 `main`에 병합했어요. `main`에 `slidev/`, `AGENTS.md`, 스킬 2개가 있어요.
-- 바뀐 것: 제 slidev 초안은 기획 단계 뼈대였어요. 지금 구현에 맞춘 12쪽 발표자료와 `PRESENTATION.pdf`는 [PR #11](https://github.com/jyje/kirothon-team-032/pull/11)(열려 있음)에서 새로 썼어요. 이 PR은 제가 만들지 않았어요.
+- 바뀐 것: 제 slidev 초안은 기획 단계 뼈대였어요. 지금 구현에 맞춘 12쪽 발표자료와 `PRESENTATION.pdf`는 [PR #11](https://github.com/jyje/kirothon-team-032/pull/11)에서 새로 써서 `main`에 병합됐어요. 이 PR은 제가 만들지 않았어요.
 - 갱신: PR #11 브랜치에 기대 효과를 확인된 것만 남기는 수정(`f370e49`)과 Pretendard·Rubik 글꼴을 PDF에 넣는 커밋(`8299d73`)이 더해졌어요.
-- 갱신: README에 외부 코드와 디자인의 출처와 라이선스가 적혔고(`476d914`), 평가 문서의 제출 체크리스트에 확인한 항목이 표시됐어요(`b51c009`). 둘 다 `main` 병합 전이에요.
+- 갱신: README에 외부 코드와 디자인의 출처와 라이선스가 적혔고(`476d914`), 평가 문서의 제출 체크리스트에 확인한 항목이 표시됐어요(`b51c009`). 둘 다 `main`에 들어 있어요.
 - 아직 안 함: 제 초안의 `npm run dev` 확인, 영문 덱, 화면 확인. 발표자 이름, 발표 시간 같은 빈칸도 남았어요. 발표자료는 PR #11이 이어받았어요.
 - 일부러 보류: `README.md`(이후 [PR #3](https://github.com/jyje/kirothon-team-032/pull/3)에서 새로 작성돼 병합됨), `docs/team.md`(Bot 담당이 추정), `records/`(`docs/`와 겹치는지 미확인).
 - 알려진 문제: 검증 스크립트가 `skills/<이름>` 스코프를 막아요. `main`에도 그대로예요. 그래서 스킬 커밋 4개가 검증에 실패해요. 고치는 후속 커밋이 필요해요.
