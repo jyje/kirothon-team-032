@@ -1,3 +1,11 @@
+/* Fonts are bundled from npm (no network at build time). Rubik is the design-system
+   body font (Latin only), Pretendard covers Korean. */
+@import "@fontsource/rubik/latin-500.css";
+@import "@fontsource/rubik/latin-700.css";
+@import "pretendard/dist/web/static/Pretendard-Regular.css";
+@import "pretendard/dist/web/static/Pretendard-Medium.css";
+@import "pretendard/dist/web/static/Pretendard-Bold.css";
+
 /* Colours copied from design-system/tokens.css (KIROTHON 2026). Keep in sync by hand. */
 :root {
   --color-ink: #0b0b0b;
@@ -10,12 +18,14 @@
 .slidev-layout {
   background: var(--color-purple);
   color: #ffffff;
-  font-family: system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-family: "Pretendard", system-ui, sans-serif;
 }
 
 .slidev-layout h1,
 .slidev-layout h2 {
   color: var(--color-lavender);
+  font-family: "Rubik", "Pretendard", system-ui, sans-serif;
+  font-weight: 700;
 }
 
 .slidev-layout a {
