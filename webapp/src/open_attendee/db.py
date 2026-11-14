@@ -1,0 +1,56 @@
+"""SQLite 연결. WAL 모드와 busy_timeout을 켜고, 테이블을 만드는 초기화 함수를 제공한다."""
+
+from __future__ import annotations
+
+import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
+
+from sqlalchemy import Engine, event
+from sqlmodel import Session, SQLModel, create_engine
+
+BUSY_TIMEOUT_MS = 5000
+
+
+def _set_pragmas(dbapi_connection: sqlite3.Connection, _record: object) -> None:
+    cursor = dbapi_connection.cursor()
+    try:
+        # 쓰기 주체가 앱 하나라서 WAL로 읽기와 쓰기가 서로 막지 않게 한다(요구사항 27.9).
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+    finally:
+        cursor.close()
+
+
+def make_engine(db_path: Path | str) -> Engine:
+    """`db_path`의 SQLite 파일을 여는 엔진을 만든다. 부모 디렉터리가 없으면 만든다."""
+    path = Path(db_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    engine = create_engine(
+        f"sqlite:///{path}",
+        # 요청 스레드와 워커 스레드가 같은 엔진을 쓴다.
+        connect_args={"check_same_thread": False},
+    )
+    event.listen(engine, "connect", _set_pragmas)
+    return engine
+
+
+def init_db(engine: Engine) -> None:
+    """모든 테이블을 만든다. 이미 있으면 건드리지 않는다."""
+    from open_attendee import models  # noqa: F401  테이블을 SQLModel.metadata에 등록한다.
+
+    SQLModel.metadata.create_all(engine)
+
+
+@contextmanager
+def session_scope(engine: Engine) -> Iterator[Session]:
+    """한 작업 단위. 예외 없이 끝나면 커밋하고, 예외가 나면 되돌린다."""
+    with Session(engine) as session:
+        try:
+            yield session
+            session.commit()
+        except BaseException:
+            session.rollback()
+            raise
