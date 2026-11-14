@@ -1,6 +1,6 @@
 apiVersion: v2
-name: kirothon
-description: Placeholder web app chart for the kirothon-team-032 project.
+name: open-attendee
+description: Open Attendee 웹앱(FastAPI + Vue)을 배포하는 차트
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
