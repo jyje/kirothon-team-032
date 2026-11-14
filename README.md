@@ -208,6 +208,14 @@ helm lint helm --set image.tag=test
   npx slidev export --output ../PRESENTATION.pdf --wait 3000
   ```
 
+## 출처와 라이선스
+
+- 이 저장소의 코드는 [MIT](LICENSE)입니다. 화면, 서버, 배포 설정은 이 해커톤에서 새로 작성했습니다.
+- **디자인**: [kirothon-timer.vercel.app](https://kirothon-timer.vercel.app/)에서 추출한 토큰([`design-system/`](design-system))과, AWS의 오픈소스 [Cloudscape](https://cloudscape.design/) 디자인 토큰 참고 자료(Apache-2.0, [`docs/references/cloudscape/`](docs/references/cloudscape)에 라이선스와 출처 포함).
+- **글꼴**: `@fontsource`로 내려받는 Rubik(OFL-1.1), Rubik Mono One, Permanent Marker(Apache-2.0).
+- **주요 라이브러리**: Vue, Vite, FastAPI, SQLModel, Pillow, pypdf, Strands Agents 등. 각 라이선스는 해당 패키지를 따릅니다.
+- **CI 이미지 빌드 방식**은 작성자 본인의 저장소 [`jyje/mungchilog`](https://github.com/jyje/mungchilog)의 `build.yml` 구성을 참고했습니다.
+
 ## 디자인 시스템
 
 - 토큰: [`design-system/tokens.css`](design-system/tokens.css)
