@@ -1,0 +1,39 @@
+/* 디자인 시스템 토큰만 쓴다. 새 색을 만들지 않는다. */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; }
+
+body {
+  font-family: var(--font-body);
+  font-weight: 500;
+  background: var(--bg-page);
+  color: var(--text-on-light);
+}
+
+.page {
+  min-height: 100%;
+  display: grid;
+  padding: var(--inset);
+}
+
+.frame {
+  background: var(--bg-scene);
+  color: var(--text-on-dark);
+  border-radius: var(--radius-frame);
+  box-shadow: var(--frame-ring);
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - var(--inset) * 2);
+  overflow: hidden;
+}
+
+:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+
+@media (max-width: 700px) {
+  .page { padding: calc(var(--inset) / 2); }
+  .frame { border-radius: var(--radius-frame-sm); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
