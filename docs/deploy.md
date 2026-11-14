@@ -13,6 +13,7 @@
 | 설정 | `PROVIDER`, `AWS_REGION`, `BLOB_BACKEND`, `FEATURE_RECORDING`, `TRANSCRIBER` | ConfigMap (`values.yaml`의 `config`) | 비밀이 아니에요 |
 | 설정 | `SQLITE_JOURNAL_MODE` | ConfigMap | 이 클러스터는 NFS라서 `delete`예요. 로컬 디스크는 `wal` |
 | 고정 | `DATA_DIR=/data` | ConfigMap | PVC가 `/data`에 붙어요 |
+| 설정 | `FORWARDED_ALLOW_IPS` | ConfigMap | `*`. 인그레스 뒤에서 로그인 제한이 접속자 IP별로 걸리게 해요 |
 
 - 차트에는 비밀 값이 없어요. `existingSecret`에 미리 만든 Secret의 **이름**만 적어요.
 - 로컬은 `webapp/.env`(커밋하지 않음)를 쓰고, 예시는 `webapp/.env.example`이에요.
