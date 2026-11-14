@@ -42,7 +42,7 @@ Kiro Crew에서 Bot 5개가 역할을 나눠 일했어요. 모두 사람이 검�
 | Bot | 성격 | 성과 | 결과물 |
 |---|---|---|---|
 | 기획 (Kiro Crew) | 계획 담당. 커밋과 파일에서 확인한 것만 근거로 삼음 | 커밋 목록을 읽고 구현 단계와 마일스톤 기준으로 기획 추가안 제안. 이 `BUILD_REPORT.md`를 새 커밋에 맞춰 갱신 | 아래 "기획 현황", `BUILD_REPORT.md` |
-| 정책이 (Claude Code) | 규칙을 꼼꼼히 읽고 근거를 붙이는 문서 담당. 확인 못 한 점은 빈칸으로 둠 | 평가 기준, 거버넌스, 보안 유의사항, 제출 전 체크리스트를 한 문서로 정리. 서울 행사 기준으로 거버넌스 4항목만 남김 | `docs/EVALUATION_GOVERNANCE_SECURITY.md` |
+| 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 규칙을 꼼꼼히 읽고 근거를 붙이는 문서 담당. 확인 못 한 점은 빈칸으로 둠 | 평가 기준, 거버넌스, 보안 유의사항, 제출 전 체크리스트를 한 문서로 정리. 주최측 참가자 안내문의 점수표(1차 100점), 시간표, 주제, 행동강령으로 맞춤. Kiro 활용 증거(스크린샷 2장)와 `.kiro/steering` 3개, 정책 점검과 정정 PR | `docs/EVALUATION_GOVERNANCE_SECURITY.md`, `docs/KIRO_USAGE.md`, `.kiro/steering/` |
 | 문서기 | 정리와 기록에 강한 문서 담당. 막히면 사실대로 보고함 | slidev 발표 초안(섹션 7개, 빌드 성공), 스킬 2개 가져오기, 커밋 10개와 병합된 PR #1, `AGENTS.md` 규칙 작성. 발표 초안은 이후 PR #11에서 구현에 맞게 다시 쓰이는 중 | `slidev/`, `AGENTS.md`, `.agents/skills/` |
 | AI마니아 | 모델 공급자 관리자. 키와 약관 위험을 신중히 따짐 | Strands SDK로 Bedrock·OpenAI·Codex를 공급자 설정만으로 전환. OpenAI와 Codex 실제 호출 성공, 시험 21개 통과 | `provider-manager/` |
 | 디자이니 | 디자인 담당. 근거 없는 추측은 적어 둠 | 디자인 토큰과 규칙, 스토리보드, Cloudscape 토큰 571개 변환, 디자인 스킬. PR #2 병합 | `design-system/`, `docs/references/cloudscape/`, `.agents/skills/kirothon-design-system/` |
@@ -56,8 +56,11 @@ Kiro Crew에서 Bot 5개가 역할을 나눠 일했어요. 모두 사람이 검�
 
 | 에이전트 | 역할 | 한 일 | 결과물 위치 |
 |---|---|---|---|
-| 정책이 (Claude Code) | 문서 담당 | 평가, 거버넌스, 보안 유의사항, 제출 전 체크리스트 정리. 참고한 [Kirothon 규칙 페이지](https://awscommunity.pk/kirothon/#rules)는 파키스탄 행사 기준이라, 서울 AWS 주최 행사에는 거버넌스 4항목(원본 작업, 지식재산, 행동 강령, 실격)만 가져옴 | `docs/EVALUATION_GOVERNANCE_SECURITY.md` |
-| 정책이 (Claude Code) | 문서 담당 | 이 저장소의 `AGENTS.md`, `SUBMISSION_GUIDE.md`를 평가와 거버넌스의 기준으로 연결. 서울 주최측 점수표는 아직 못 구해서 빈칸으로 둠. 참여 확정 안내(AUSG x ASBG x AWSKRUG, AWS Korea, 2026.11.14)를 이름과 소속을 가리고 행사 정보로 추가. 공식 사이트([kirothon.ausg.me](https://kirothon.ausg.me))의 당일 타임테이블, 팀 구성(1~4인), 주제 당일 공개도 반영 | `docs/EVALUATION_GOVERNANCE_SECURITY.md` |
+| 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 문서 담당 | 평가, 거버넌스, 보안 유의사항, 제출 전 체크리스트 정리. 참고한 [Kirothon 규칙 페이지](https://awscommunity.pk/kirothon/#rules)는 파키스탄 행사 기준이라, 서울 AWS 주최 행사에는 거버넌스 4항목(원본 작업, 지식재산, 행동 강령, 실격)만 가져옴 | `docs/EVALUATION_GOVERNANCE_SECURITY.md` |
+| 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 문서 담당 | 이 저장소의 `AGENTS.md`, `SUBMISSION_GUIDE.md`를 평가와 거버넌스의 기준으로 연결. 서울 주최측 점수표는 아직 못 구해서 빈칸으로 둠. 참여 확정 안내(AUSG x ASBG x AWSKRUG, AWS Korea, 2026.11.14)를 이름과 소속을 가리고 행사 정보로 추가. 공식 사이트([kirothon.ausg.me](https://kirothon.ausg.me))의 당일 타임테이블, 팀 구성(1~4인), 주제 당일 공개도 반영 | `docs/EVALUATION_GOVERNANCE_SECURITY.md` |
+| 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 문서 담당 | Kiro 활용 증거 문서 작성. Kiro Crew와 Kiro IDE 화면, 휴대폰으로 Kiro Crew 게이트웨이(Tailscale)에 접속해 이동 중에 개발한 화면을 정리. 이메일과 사설망 주소는 가림 | `docs/KIRO_USAGE.md`, `docs/screenshots/` |
+| 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 문서 담당 | `$HOME/.kiro` 설정은 평가에 보이지 않아, 프로젝트 `.kiro/`에 steering 3개(팀 규칙, 제품과 행사, 보안)와 비밀 값 없는 `mcp.json`을 만듦. 비밀 값이 있는 홈 설정은 옮기지 않음 | `.kiro/steering/`, `.kiro/settings/mcp.json` |
+| 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 문서 담당 | 정책 점검: 공개 저장소, 비밀 값 추적, 개인정보, 기본 비밀번호, 제출 필수 파일을 `main` 기준으로 확인. 안내문과 어긋난 문서(점수표 없음, 시간표, 장소 층, 주제)를 고치는 PR 작성 | 이 PR |
 | AI마니아 (Kiro Crew) | 프로바이더 관리자. Bedrock, Codex, OpenAI 키와 추론 환경 담당 | [template-pilot-ai-python](https://github.com/jyje/template-pilot-ai-python)을 참고해 초기 구성. Bedrock API 키(`AWS_BEARER_TOKEN_BEDROCK`)와 OpenAI API 키 지원 | `provider-manager/` |
 | AI마니아 (Kiro Crew) | 프로바이더 관리자 | 공급자 시험 코드 작성. Bedrock 시험 6개 추가 (가짜 응답 사용) | `provider-manager/src/tests/test_providers.py` |
 | AI마니아 (Kiro Crew) | 프로바이더 관리자 | LangChain 대신 Strands SDK로 전환. `PROVIDER`(`bedrock`, `openai`, `codex`)만 바꾸면 같은 에이전트 코드로 동작. `.env.example`에 공급자별 환경변수 정리 | `provider-manager/src/provider_manager/factory.py`, `.env.example` |
@@ -84,6 +87,8 @@ Kiro Crew에서 Bot 5개가 역할을 나눠 일했어요. 모두 사람이 검�
 | 배포기 (Kiro Crew) | 배포 담당 | `jyje/cluster`에 환경별 Argo CD 앱과 Image Updater 추가. 주소는 `attendee.{dev,stg,app}.jyje.online`. 영어 PR로 올림. [PR #270](https://github.com/jyje/cluster/pull/270) 병합 | `clusters/r4spi/apps/open-attendee-*.yaml` |
 | 배포기 (Kiro Crew) | 배포 담당 | Porkbun에서 도메인 기록을 확인하고 CNAME 3개(`attendee.dev`, `attendee.stg`, `attendee.app`)를 `r5iny.iptime.org.`로 생성 | Porkbun DNS |
 | 배포기 (Kiro Crew) | 배포 담당 | 시크릿 `open-attendee`가 없어 Argo CD가 오류를 낸 원인을 찾음. 비밀번호는 사람이 직접 봉인하도록 명령을 남기고, 봉인 파일 3개를 영어 PR로 올림. [PR #271](https://github.com/jyje/cluster/pull/271) (병합 전) | `clusters/r4spi/apps/open-attendee-secret-*.yaml` |
+
+> 정정: 정책이는 Claude Code를 직접 쓴 것이 아니에요. Kiro Crew의 Bot이고, Kiro Crew의 실험 기능으로 백엔드(하네스)만 Claude Code CLI로 바꿨어요. 팀 단위로는 Kiro Crew가 중심이고, 하위 작업 일부를 Claude Code 백엔드의 Bot이 맡았어요. 모델은 Kiro와 Claude Code 모두 Sonnet 5.5예요.
 
 Kiro 활용 증거와 중간 개발 스크린샷은 [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md)에 모아 두었어요.
 
@@ -177,12 +182,15 @@ Kiro 활용 증거와 중간 개발 스크린샷은 [`docs/KIRO_USAGE.md`](docs/
 - 배포기: 환경(dev, stg, prd)을 브랜치로 나누고 브랜치마다 이미지 이름을 다르게 했어요. `main`은 `dev`로 바뀔 때까지 `-dev` 이미지를 만들어요.
 - 배포기: 설치 환경을 웹앱 + 온프레미스 k8s로 줄였어요.
 - 처음엔 파키스탄 대회 페이지의 점수표와 참가 자격까지 문서에 넣었어요. 이 행사는 서울 AWS KRUG, AWS 대학생 커뮤니티 모임 중심이라는 말을 듣고, 거버넌스 4항목만 남기고 나머지는 뺐어요. 기준은 `SUBMISSION_GUIDE.md`예요.
+- 그 뒤 주최측 참가자 안내문(`docs/IMPORTANCT_NOTICE.md`)을 끝까지 읽고 나서, 실제 점수표(Kiro 활용 35, 작동 30, 문제 정의 20, 사용자 가치 15)와 시간표, 주제, 행동강령(AWS 행동강령)을 문서에 넣었어요. 점수표가 없다고 적었던 부분을 고쳤어요.
+- Kiro의 `$HOME/.kiro` 설정은 평가받을 수 없다고 해서, 필요한 규칙을 프로젝트 `.kiro/steering/`로 옮겼어요. 비밀 값이 있는 `mcp.json`과 Kiro Crew가 매번 새로 만드는 `agents/`는 옮기지 않았어요.
 
 ## 어려웠던 점과 해결 방법
 
 - 대회 페이지 본문이 CSS에 묻혀 있어서, `style`과 `script`를 지운 뒤 텍스트만 뽑아 읽었어요.
 - Codex는 글을 만드는 공개 호출 방법이 없었어요. `codex exec`를 감싸는 Strands 모델을 직접 만들어 풀었어요.
 - 컨테이너에서 Codex 로그인이 걱정이었어요. 기기 로그인을 쓰고 `~/.codex`를 볼륨으로 남기는 방식으로 정했어요. 끝까지 실행해 보진 못했어요.
+- PR #4가 병합된 뒤에 같은 브랜치로 올린 커밋 4개(정정, steering)가 `main`에 들어가지 않았어요. `main`과 브랜치를 비교해서 알아냈고, 새 PR로 다시 올렸어요. 병합된 브랜치에는 더 이상 커밋을 쌓지 않아요.
 - 에이전트 실행 환경의 샌드박스가 켜지지 않아 첫 명령이 실패했어요. 샌드박스 없이 읽기 명령만 다시 실행했어요.
 - 디자이니: 작업 폴더가 비어 있어서 구현을 멈추고 물었어요. 팀 폴더 `kirothon-team-032`가 기준이라는 답을 받고 거기로 맞췄어요.
 - AI마니아: 처음 두 번은 엉뚱한 위치(임시 폴더, 빈 `event-kirothon2026`)에 만들었어요. 기준 경로를 물어 `kirothon-team-032`로 다시 만들고 옛 폴더를 지웠어요.
