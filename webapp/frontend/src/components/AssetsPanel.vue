@@ -22,7 +22,7 @@ function blockLabel(b: Block, i: number): string {
 
 async function load() {
   const data = await api<AssetList>(base.value)
-  assets.value = data.items
+  assets.value = data.items.map((a) => ({ ...a, caption: a.caption ?? '' }))
   limits.value = data.limits
 }
 
