@@ -73,12 +73,11 @@ Kiro Crew에서 Bot 5개가 역할을 나눠 일했어요. 모두 사람이 검�
 | 문서기 (Kiro Crew) | 문서 담당 | `jyje/skills`에서 `centered-readme`와 `git-commit-helper` 스킬을 가져옴 (원본과 바이트 단위로 같음) | `.agents/skills/` |
 | 문서기 (Kiro Crew) | 문서 담당 | 변경점을 10개 묶음으로 나눠 커밋 메시지를 제안하고, 승인받아 서명 없이 커밋 10개 작성 | [PR #1](https://github.com/jyje/kirothon-team-032/pull/1) |
 | 문서기 (Kiro Crew) | 문서 담당 | `AGENTS.md`에 Bot별 PR 표시, 한글 커밋 허용, 서명 없는 커밋과 PR로만 올리는 규칙 작성. `git-commit-helper`의 스킬 문서와 검증 스크립트가 한글 제목을 받도록 고치고 테스트 6개 통과 | `AGENTS.md`, `.agents/skills/git-commit-helper/` |
-
-> 정정: 정책이는 Claude Code를 직접 쓴 것이 아니에요. Kiro Crew의 Bot이고, Kiro Crew의 실험 기능으로 백엔드(하네스)만 Claude Code CLI로 바꿨어요. 팀 단위로는 Kiro Crew가 중심이고, 하위 작업 일부를 Claude Code 백엔드의 Bot이 맡았어요. 모델은 Kiro와 Claude Code 모두 Sonnet 5.5예요.
-
 | 배포기 (Kiro Crew) | 배포 담당. `docker/`와 `helm/` 담당 | 개인 클러스터 `jyje/cluster`와 `jyje/pifanctl` 구조를 참고해 간단한 Helm 차트 작성 (Deployment, Service, Ingress). 앱 코드가 아직 없어서 임시 nginx 이미지를 씀 | `helm/` |
 | 배포기 (Kiro Crew) | 배포 담당 | 임시 Dockerfile과 안내 페이지 작성. 이미지 `kirothon:0.1.0`을 로컬에서 빌드함 | `docker/Dockerfile`, `docker/html/index.html` |
 | 배포기 (Kiro Crew) | 배포 담당 | 임시 폴더에서 팀 저장소로 두 폴더를 옮기고 `helm lint`를 다시 통과시킴. 저장소의 다른 변경은 건드리지 않음 | `docker/`, `helm/` |
+
+> 정정: 정책이는 Claude Code를 직접 쓴 것이 아니에요. Kiro Crew의 Bot이고, Kiro Crew의 실험 기능으로 백엔드(하네스)만 Claude Code CLI로 바꿨어요. 팀 단위로는 Kiro Crew가 중심이고, 하위 작업 일부를 Claude Code 백엔드의 Bot이 맡았어요. 모델은 Kiro와 Claude Code 모두 Sonnet 5.5예요.
 
 Kiro 활용 증거와 중간 개발 스크린샷은 [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md)에 모아 두었어요.
 
