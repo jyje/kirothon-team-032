@@ -23,7 +23,9 @@ export const GITMOJI_TYPES = new Map([
   ['🤖', 'ci'],
 ]);
 
-const subjectPattern = /^([a-z][a-z0-9-]*)\(([a-z0-9]+(?:-[a-z0-9]+)*)\): ([a-z].*)$/;
+// The scope is kebab-case and may have one `/` part, like `skills/git-commit-helper`.
+// The title may start with a lowercase English letter or a Hangul syllable (Korean).
+const subjectPattern = /^([a-z][a-z0-9-]*)\(([a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)?)\): ([a-z\uAC00-\uD7A3].*)$/;
 
 export function validateCommitMessage(message) {
   const subject = message.split(/\r?\n/, 1)[0];
@@ -49,7 +51,7 @@ export function validateCommitMessage(message) {
   if (!match) {
     return {
       valid: false,
-      reason: 'expected "<gitmoji> <type>(<scope>): <lowercase title>" with a kebab-case scope',
+      reason: 'expected "<gitmoji> <type>(<scope>): <title>" with a kebab-case scope and a lowercase or Korean title',
     };
   }
 
