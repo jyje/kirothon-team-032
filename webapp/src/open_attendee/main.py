@@ -9,13 +9,13 @@ import pkgutil
 import shutil
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from provider_manager.base import Provider
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
@@ -39,30 +39,44 @@ _PROVIDER_SECRET_ENVS = (
     "AWS_SESSION_TOKEN",
 )
 
-ProviderFactory = Callable[[], Provider | None]
+
+@dataclass(frozen=True)
+class ProviderInfo:
+    """`/healthz`에 보여 줄 LLM 제공자 요약. 키와 마스크된 키는 담지 않는다."""
+
+    name: str
+    region: str | None = None
 
 
-def resolve_provider(settings: Settings) -> Provider | None:
+ProviderFactory = Callable[[], ProviderInfo | None]
+
+
+def resolve_provider(settings: Settings) -> ProviderInfo | None:
     """설정된 LLM 제공자를 돌려준다. 설정되지 않았으면 `None`. Codex는 추론에 쓰지 않는다."""
-    from provider_manager.registry import get_provider
+    from provider_manager import factory
 
     try:
-        provider = get_provider(settings.provider)
-    except (RuntimeError, ValueError):
+        name = factory.resolve(settings.provider)
+    except ValueError:
         return None
-    if provider.name == "codex" or not provider.is_configured():
+    if name == "codex" or not factory.is_configured(name):
         return None
-    return provider
+    region = (
+        (os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1")
+        if name == "bedrock"
+        else None
+    )
+    return ProviderInfo(name=name, region=region)
 
 
-def describe_llm(provider: Provider | None) -> dict[str, Any]:
+def describe_llm(provider: ProviderInfo | None) -> dict[str, Any]:
     """`/healthz`용 LLM 요약. 제공자 이름과 리전만 담고 키는 마스크된 값도 넣지 않는다."""
     if provider is None:
         return {"configured": False, "provider": None, "region": None}
     return {
         "configured": True,
         "provider": provider.name,
-        "region": getattr(provider, "region", None),
+        "region": provider.region,
     }
 
 

@@ -7,31 +7,19 @@ import logging
 import pytest
 from fastapi import APIRouter
 from fastapi.testclient import TestClient
-from provider_manager.base import Provider
 
 from open_attendee.config import Settings
 from open_attendee.logging_redact import Sensitive
-from open_attendee.main import create_app, discover_routers
+from open_attendee.main import ProviderInfo, create_app, discover_routers
 
 from .conftest import BASE_URL, OWNER_HASH, SESSION_SECRET, login
 
 API_KEY = "sk-live-0123456789abcdef"
 
 
-class StubProvider(Provider):
-    """키가 설정된 Bedrock 제공자 흉내. `describe()`는 일부러 키 끝자리를 담는다."""
-
-    name = "bedrock"
-    region = "us-east-1"
-
-    def is_configured(self) -> bool:
-        return True
-
-    def describe(self) -> str:
-        return f"bedrock region={self.region} token=****{API_KEY[-4:]}"
-
-    def complete(self, prompt: str) -> str:
-        raise AssertionError("healthz는 LLM을 부르지 않는다")
+def stub_provider() -> ProviderInfo:
+    """키가 설정된 Bedrock 제공자 흉내. 요약에는 이름과 리전만 있다."""
+    return ProviderInfo(name="bedrock", region="us-east-1")
 
 
 def test_healthz_without_llm(client: TestClient) -> None:
@@ -49,7 +37,7 @@ def test_healthz_needs_no_login(client: TestClient) -> None:
 
 
 def test_healthz_reports_provider_and_region_without_secrets(settings: Settings) -> None:
-    app = create_app(settings, provider_factory=lambda: StubProvider())
+    app = create_app(settings, provider_factory=stub_provider)
     with TestClient(app, base_url=BASE_URL) as client:
         res = client.get("/healthz")
     assert res.json()["llm"] == {"configured": True, "provider": "bedrock", "region": "us-east-1"}
