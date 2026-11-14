@@ -1,0 +1,22 @@
+# 로컬에서 이미지를 그대로 돌려 보는 용도다.
+#   cp webapp/.env.example webapp/.env   # 값을 채운다(커밋하지 않는다)
+#   docker compose up --build
+# 그리고 http://localhost:8080 으로 연다. 쿠키가 Secure라서 localhost나 https에서만 로그인이 유지된다.
+services:
+  open-attendee:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: open-attendee:dev
+    ports:
+      - "8080:8080"
+    env_file:
+      - webapp/.env
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - data:/data
+    restart: unless-stopped
+
+volumes:
+  data: {}

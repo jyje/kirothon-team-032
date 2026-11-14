@@ -1,26 +1,56 @@
+# 복제본은 1로 둔다. SQLite와 업로드 파일을 PVC 하나에 쓰기 때문이다.
 replicaCount: 1
 
 image:
-  # Placeholder: the project has no app code yet. Points at the locally built image.
-  repository: kirothon
-  tag: "0.1.0"
+  # 노드가 arm64(Raspberry Pi)라서 linux/arm64 이미지가 있어야 한다.
+  # main에 올라가면 CI(.github/workflows/build.yml)가 만든다. 태그는 CI 요약에 나오는 r<번호>-<sha7>.
+  repository: ghcr.io/jyje/kirothon-team-032
+  tag: ""
   pullPolicy: IfNotPresent
+# 비공개 레지스트리면 `kubectl create secret docker-registry`로 만든 Secret 이름을 넣는다.
+imagePullSecrets: []
+
+# 비밀은 차트에 넣지 않는다. 미리 만든 Secret의 이름만 받는다(docs/deploy.md).
+# 필수 키: OWNER_PASSWORD_HASH, SESSION_SECRET
+# 선택 키: OPENAI_API_KEY, AWS_BEARER_TOKEN_BEDROCK
+existingSecret: open-attendee
+
+# 비밀이 아닌 설정. ConfigMap으로 만들어 환경 변수로 넣는다.
+config:
+  PROVIDER: openai
+  BLOB_BACKEND: local
+  FEATURE_RECORDING: "false"
+  TRANSCRIBER: none
+  AWS_REGION: us-east-1
+  # 이 클러스터의 기본 저장소(subdir-usb)는 NFS라서 SQLite WAL을 쓰지 않는다.
+  SQLITE_JOURNAL_MODE: delete
+
+persistence:
+  enabled: true
+  size: 2Gi
+  # 비워 두면 클러스터 기본 StorageClass를 쓴다.
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  # 이미 있는 PVC를 쓰려면 이름을 넣는다.
+  existingClaim: ""
 
 service:
   port: 80
   targetPort: 8080
 
 ingress:
-  # Off by default. Enable once a host is chosen.
+  # 호스트를 정하기 전에는 꺼 둔다. port-forward로 먼저 확인할 수 있다.
   enabled: false
   className: nginx
-  # Assumed issuer name, matching the cluster's cert-manager setup.
+  # 클러스터에 있는 ClusterIssuer 이름.
   clusterIssuer: nginx-letsencrypt-prod
-  host: kirothon.example.com
+  host: open-attendee.example.com
+  # 발표자료 PDF는 30MB까지라서 nginx 기본(1m)보다 크게 둔다. 서버의 상한(413)보다 조금 넉넉하게.
+  proxyBodySize: 32m
 
 resources:
   requests:
-    cpu: 50m
-    memory: 32Mi
+    cpu: 100m
+    memory: 192Mi
   limits:
-    memory: 128Mi
+    memory: 512Mi

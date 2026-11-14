@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.git
+.codex
+**/.codex
+**/auth.json
+**/__pycache__
+**/.venv
+**/.pytest_cache
+**/.ruff_cache
+**/build
+**/*.egg-info

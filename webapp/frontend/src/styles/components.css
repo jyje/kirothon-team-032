@@ -1,0 +1,33 @@
+/* 디자인 시스템 컴포넌트: 알약 버튼, 입력. 색과 그림자는 토큰만 쓴다. */
+.btn {
+  font: 700 var(--fs-btn) var(--font-body);
+  color: var(--color-ink);
+  background: var(--color-white);
+  border: var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-btn);
+  padding: var(--space-3) var(--space-6);
+  cursor: pointer;
+  transition: background var(--dur-base), transform var(--dur-fast), box-shadow var(--dur-fast);
+}
+.btn:hover:not(:disabled) { background: var(--color-lavender); }
+.btn:active:not(:disabled) { transform: translateY(3px); box-shadow: var(--shadow-btn-pressed); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-primary {
+  background: var(--color-purple);
+  color: var(--color-white);
+  font-size: var(--fs-btn-primary);
+  min-width: 120px;
+}
+.btn-primary:hover:not(:disabled) { background: var(--color-purple-hover); }
+.btn-small { font-size: var(--fs-btn-sm); padding: var(--space-2) var(--space-5); }
+
+.field { display: grid; gap: var(--space-2); font-size: var(--fs-btn-seg); color: var(--text-muted-on-dark); }
+.field input, .field textarea {
+  font: 500 var(--fs-btn) var(--font-body);
+  color: var(--color-ink);
+  background: var(--color-white);
+  border: var(--border);
+  border-radius: var(--radius-pill);
+  padding: var(--space-3) var(--space-5);
+}

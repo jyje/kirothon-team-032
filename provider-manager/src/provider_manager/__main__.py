@@ -1,23 +1,35 @@
-"""CLI: `python -m provider_manager status` or `... ask "prompt"`."""
+"""CLI: `python -m provider_manager status` or `... ask [--provider NAME] "prompt"`."""
 
 from __future__ import annotations
 
 import sys
 
-from provider_manager.registry import PROVIDERS, get_provider
+from provider_manager.config import codex_enabled
+from provider_manager.factory import PROVIDERS, ask, describe, is_configured, resolve
+
+USAGE = 'usage: python -m provider_manager status | ask [--provider NAME] "prompt"'
 
 
 def main(argv: list[str]) -> int:
-    cmd = argv[0] if argv else "status"
+    cmd, rest = (argv[0] if argv else "status"), argv[1:]
     if cmd == "status":
-        for cls in PROVIDERS.values():
-            p = cls()
-            print(("ok  " if p.is_configured() else "--  ") + p.describe())
+        for name in PROVIDERS:
+            off = name == "codex" and not codex_enabled()
+            mark = "off " if off else "ok  " if is_configured(name) else "--  "
+            print(mark + describe(name))
+        print(f"active: {resolve()}")
         return 0
-    if cmd == "ask" and len(argv) > 1:
-        print(get_provider().complete(" ".join(argv[1:])))
+    provider = None
+    if rest[:1] == ["--provider"] and len(rest) > 1:
+        provider, rest = rest[1], rest[2:]
+    if cmd == "ask" and rest:
+        try:
+            print(ask(" ".join(rest), provider))
+        except (ValueError, RuntimeError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
         return 0
-    print('usage: python -m provider_manager status | ask "prompt"', file=sys.stderr)
+    print(USAGE, file=sys.stderr)
     return 2
 
 

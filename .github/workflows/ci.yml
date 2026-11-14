@@ -1,0 +1,70 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  backend:
+    name: webapp (ruff, pytest)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: webapp/src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: |
+            webapp/src/uv.lock
+            provider-manager/src/uv.lock
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -q
+  provider-manager:
+    name: provider-manager (ruff, pytest)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: provider-manager/src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: provider-manager/src/uv.lock
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run pytest -q
+  frontend:
+    name: frontend (vue-tsc, build)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: webapp/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: webapp/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+  helm:
+    name: helm lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: helm lint helm --set image.tag=ci
+      - run: helm template ci helm --set image.tag=ci --set ingress.enabled=true > /dev/null

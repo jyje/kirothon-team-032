@@ -21,6 +21,13 @@ def env_is_set(name: str) -> bool:
     return bool(value) and not value.startswith(PLACEHOLDERS)
 
 
+def codex_enabled() -> bool:
+    """Codex is optional: on with CODEX_ENABLED=true, or when PROVIDER=codex."""
+    load_env()
+    on = os.getenv("CODEX_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+    return on or os.getenv("PROVIDER", "").strip().lower() == "codex"
+
+
 def mask(secret: str | None) -> str:
     """Show at most the last 4 characters, and nothing for short secrets."""
     if not secret:

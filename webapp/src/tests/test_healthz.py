@@ -1,0 +1,125 @@
+"""`/healthz`와 앱 조립 (요구사항 26.3, 26.4)."""
+
+from __future__ import annotations
+
+import logging
+
+import pytest
+from fastapi import APIRouter
+from fastapi.testclient import TestClient
+
+from open_attendee.config import Settings
+from open_attendee.logging_redact import Sensitive
+from open_attendee.main import ProviderInfo, create_app, discover_routers
+
+from .conftest import BASE_URL, OWNER_HASH, SESSION_SECRET, include_first, login
+
+API_KEY = "sk-live-0123456789abcdef"
+
+
+def stub_provider() -> ProviderInfo:
+    """키가 설정된 Bedrock 제공자 흉내. 요약에는 이름과 리전만 있다."""
+    return ProviderInfo(name="bedrock", region="us-east-1")
+
+
+def test_healthz_without_llm(client: TestClient) -> None:
+    res = client.get("/healthz")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["ready"] is True
+    assert body["llm"] == {"configured": False, "provider": None, "region": None}
+    assert body["storage"]["backend"] == "local"
+    assert body["storage"]["free_bytes"] > 0
+
+
+def test_healthz_needs_no_login(client: TestClient) -> None:
+    assert client.get("/healthz").status_code == 200
+
+
+def test_healthz_reports_provider_and_region_without_secrets(settings: Settings) -> None:
+    app = create_app(settings, provider_factory=stub_provider)
+    with TestClient(app, base_url=BASE_URL) as client:
+        res = client.get("/healthz")
+    assert res.json()["llm"] == {"configured": True, "provider": "bedrock", "region": "us-east-1"}
+    for secret in (OWNER_HASH, SESSION_SECRET, API_KEY, API_KEY[-4:]):
+        assert secret not in res.text
+
+
+def test_healthz_is_503_when_database_is_unavailable(settings: Settings) -> None:
+    app = create_app(settings, provider_factory=lambda: None)
+    with TestClient(app) as client:
+        client.app.state.engine.dispose()  # type: ignore[attr-defined]
+        client.app.state.engine = None  # type: ignore[attr-defined]
+        res = client.get("/healthz")
+    assert res.status_code == 503
+    assert res.json()["ready"] is False
+
+
+def test_docs_endpoints_are_off(auth_client: TestClient) -> None:
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        body = auth_client.get(path).text.lower()
+        assert "swagger" not in body
+        assert "openapi" not in body
+
+
+def test_database_file_is_created_in_data_dir(client: TestClient, settings: Settings) -> None:
+    assert settings.db_path.exists()
+
+
+def test_routes_modules_are_registered_automatically() -> None:
+    routers = discover_routers()
+    assert all(isinstance(r, APIRouter) for r in routers)
+
+
+def test_validation_error_does_not_echo_input(settings: Settings) -> None:
+    app = create_app(settings, provider_factory=lambda: None)
+    router = APIRouter()
+
+    @router.post("/echo-test")
+    def echo(count: int) -> dict[str, int]:
+        return {"count": count}
+
+    include_first(app, router)
+    with TestClient(app, base_url=BASE_URL) as client:
+        token = login(client)
+        res = client.post(
+            "/echo-test", params={"count": "my-private-note"}, headers={"X-CSRF-Token": token}
+        )
+    assert res.status_code == 422
+    assert "my-private-note" not in res.text
+
+
+def test_unhandled_error_hides_message(settings: Settings) -> None:
+    app = create_app(settings, provider_factory=lambda: None)
+    router = APIRouter()
+
+    @router.get("/boom-test")
+    def boom() -> None:
+        raise RuntimeError(f"프롬프트 원문 {API_KEY}")
+
+    include_first(app, router)
+    with TestClient(app, base_url=BASE_URL, raise_server_exceptions=False) as client:
+        login(client)
+        res = client.get("/boom-test")
+    assert res.status_code == 500
+    assert API_KEY not in res.text
+    assert "프롬프트" not in res.text
+
+
+def test_logs_mask_registered_secrets_and_sensitive_values(
+    settings: Settings, caplog: pytest.LogCaptureFixture
+) -> None:
+    create_app(settings, provider_factory=lambda: None)
+    log = logging.getLogger("open_attendee.test")
+    with caplog.at_level(logging.INFO, logger="open_attendee.test"):
+        log.info("세션 서명 키 %s", SESSION_SECRET)
+        log.info("해시 %s", OWNER_HASH)
+        log.info("헤더 Authorization: Bearer abc.def-123")
+        log.info("프롬프트 %s", Sensitive("회의에서 들은 비밀 내용"))
+        log.error("작업 실패", exc_info=RuntimeError(f"실패 {SESSION_SECRET}"))
+    text = caplog.text
+    assert SESSION_SECRET not in text
+    assert OWNER_HASH not in text
+    assert "abc.def-123" not in text
+    assert "비밀 내용" not in text
+    assert "<redacted" in text
