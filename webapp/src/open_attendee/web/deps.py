@@ -5,13 +5,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import Request
+from fastapi import Depends, Request
 from fastapi.templating import Jinja2Templates
+from sqlmodel import Session
 
-from open_attendee.auth import csrf_token_for
+from open_attendee.auth import csrf_token_for, current_owner
+from open_attendee.sessions import SessionService
+from open_attendee.storage import BlobStore
 
 WEB_DIR = Path(__file__).parent
 STATIC_DIR = WEB_DIR / "static"
@@ -27,3 +31,36 @@ def _base_context(request: Request) -> dict[str, Any]:
 
 
 templates = Jinja2Templates(directory=TEMPLATES_DIR, context_processors=[_base_context])
+
+
+def get_db(request: Request) -> Iterator[Session]:
+    """요청마다 DB 세션을 하나 열고 끝나면 닫는다. 커밋은 서비스가 작업 단위마다 한다."""
+    with Session(request.app.state.engine) as db:
+        yield db
+
+
+def get_blobs(request: Request) -> BlobStore:
+    return request.app.state.blobs
+
+
+def get_owner(request: Request) -> str:
+    """로그인한 소유자 ID. 인증 미들웨어가 로그인하지 않은 요청을 이미 걸러 냈다."""
+    return current_owner(request)
+
+
+def get_session_service(
+    db: Annotated[Session, Depends(get_db)], blobs: Annotated[BlobStore, Depends(get_blobs)]
+) -> SessionService:
+    return SessionService(db, blobs)
+
+
+def is_htmx(request: Request) -> bool:
+    return request.headers.get("HX-Request") == "true"
+
+
+def wants_json(request: Request) -> bool:
+    return "application/json" in request.headers.get("accept", "")
+
+
+Owner = Annotated[str, Depends(get_owner)]
+Sessions = Annotated[SessionService, Depends(get_session_service)]

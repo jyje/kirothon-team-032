@@ -17,4 +17,13 @@
       event.detail.headers["X-CSRF-Token"] = token;
     }
   });
+
+  // 서버가 검증 오류(422)를 짧은 HTML 조각으로 돌려주면 화면에 보여 준다.
+  document.addEventListener("htmx:beforeSwap", function (event) {
+    var xhr = event.detail.xhr;
+    if (xhr && xhr.status === 422 && /^text\/html/.test(xhr.getResponseHeader("Content-Type") || "")) {
+      event.detail.shouldSwap = true;
+      event.detail.isError = false;
+    }
+  });
 })();

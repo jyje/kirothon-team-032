@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}{{ event.title }} · Open Attendee{% endblock %}
+
+{% macro block_form(session_id, block_id, text, revision) %}
+<form class="block" data-block-id="{{ block_id }}" data-saved="{{ text }}"
+      hx-put="/sessions/{{ session_id }}/blocks/{{ block_id }}"
+      hx-trigger="input delay:800ms, save"
+      hx-target="find .block__status" hx-swap="innerHTML">
+  <label class="visually-hidden" for="block-{{ block_id }}">메모</label>
+  <textarea id="block-{{ block_id }}" name="text" rows="3" maxlength="10000">{{ text }}</textarea>
+  <div class="block__bar">
+    <span class="block__status" aria-live="polite">{% if revision %}저장됨 · 수정 {{ revision }}번째{% endif %}</span>
+    <button class="btn btn--small" type="button"
+            hx-delete="/sessions/{{ session_id }}/blocks/{{ block_id }}"
+            hx-target="closest .block" hx-swap="outerHTML"
+            hx-confirm="이 메모를 지울까요?">지우기</button>
+  </div>
+</form>
+{% endmacro %}
+
+{% block content %}
+<div class="record" id="record" data-tab="notes">
+  <header class="record__head">
+    <a class="hint" href="/sessions">← 세션 목록</a>
+    <form class="form-row" hx-patch="/sessions/{{ event.id }}" hx-target="#head-status" hx-swap="innerHTML">
+      <div class="field">
+        <label for="title">행사 이름</label>
+        <input id="title" type="text" name="title" value="{{ event.title }}" maxlength="200" required>
+      </div>
+      <div class="field">
+        <label for="event_date">날짜</label>
+        <input id="event_date" type="date" name="event_date" value="{{ event.event_date.isoformat() if event.event_date else '' }}">
+      </div>
+      <div class="field field--actions">
+        <button class="btn btn--small" type="submit">저장</button>
+        <button class="btn btn--small" type="button"
+                hx-delete="/sessions/{{ event.id }}"
+                hx-confirm="이 세션과 올린 자료를 모두 지울까요? 되돌릴 수 없어요.">세션 지우기</button>
+        <span id="head-status" aria-live="polite"></span>
+      </div>
+    </form>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="화면 전환">
+    <button class="btn btn--small" type="button" role="tab" id="tab-notes" aria-controls="panel-notes" aria-selected="true" data-tab-target="notes">기록</button>
+    <button class="btn btn--small" type="button" role="tab" id="tab-summary" aria-controls="panel-summary" aria-selected="false" data-tab-target="summary">요약</button>
+  </div>
+
+  <div class="record__grid">
+    <section class="panel panel--notes" id="panel-notes" role="tabpanel" aria-labelledby="tab-notes">
+      <h2>기록</h2>
+      <div id="blocks" class="blocks" data-session-id="{{ event.id }}">
+        {% for block in blocks %}
+        {{ block_form(event.id, block.id, block.text, block.revision) }}
+        {% endfor %}
+      </div>
+
+      <div class="dock">
+        <form id="composer" class="composer" autocomplete="off">
+          <label class="visually-hidden" for="composer-text">새 메모</label>
+          <textarea id="composer-text" rows="2" maxlength="10000" placeholder="들은 것을 바로 적어 보세요"></textarea>
+          <div class="composer__actions">
+            <button class="btn btn--primary" type="submit">메모 추가</button>
+            <button class="btn" type="button" id="photo-button" disabled aria-disabled="true"
+                    title="사진 올리기는 다음 작업에서 열려요">사진 촬영</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <div class="record__side">
+      <section class="panel panel--summary" id="panel-summary" role="tabpanel" aria-labelledby="tab-summary">
+        <h2>요약</h2>
+        <div id="summary" hx-get="/sessions/{{ event.id }}/summary" hx-trigger="load" hx-swap="innerHTML">
+          <p class="hint">아직 요약이 없어요.</p>
+        </div>
+      </section>
+
+      <section class="panel panel--assets" id="panel-assets">
+        <h2>자료</h2>
+        <div id="assets">
+          <p class="hint">사진, 발표자료, 참고자료를 올리는 영역이에요.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <template id="block-template">
+    {{ block_form(event.id, "__ID__", "", None) }}
+  </template>
+</div>
+<script src="/static/editor.js" defer></script>
+{% endblock %}

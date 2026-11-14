@@ -24,7 +24,9 @@ from open_attendee import web
 from open_attendee.auth import Auth, AuthMiddleware, LoginRateLimiter
 from open_attendee.config import Settings
 from open_attendee.db import init_db, make_engine
+from open_attendee.errors import NotFound, ValidationFailed
 from open_attendee.logging_redact import install_log_redaction
+from open_attendee.storage import LocalBlobStore
 from open_attendee.web.deps import STATIC_DIR
 
 logger = logging.getLogger("open_attendee")
@@ -94,9 +96,13 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        if settings.blob_backend != "local":
+            # S3 저장소는 1단계(20.1)에서 만든다. 몰래 로컬에 쓰지 않도록 시작을 거부한다.
+            raise RuntimeError("BLOB_BACKEND=s3는 아직 지원하지 않아요")
         engine = make_engine(settings.db_path)
         init_db(engine)
         app.state.engine = engine
+        app.state.blobs = LocalBlobStore(settings.data_dir / "blobs")
         try:
             yield
         finally:
@@ -138,6 +144,14 @@ def create_app(
             "storage": {"backend": settings.blob_backend, "free_bytes": free_bytes},
         }
         return JSONResponse(body, status_code=200 if ready else 503)
+
+    @app.exception_handler(NotFound)
+    async def not_found(_request: Request, exc: NotFound) -> JSONResponse:
+        return JSONResponse({"detail": str(exc) or "찾을 수 없어요."}, status_code=404)
+
+    @app.exception_handler(ValidationFailed)
+    async def validation_failed(_request: Request, exc: ValidationFailed) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=422)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:

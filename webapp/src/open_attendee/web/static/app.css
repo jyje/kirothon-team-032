@@ -196,6 +196,153 @@ select {
   color: var(--color-purple);
 }
 
+/* ---- 세션 목록 ---- */
+.card--spaced {
+  margin-bottom: var(--space-6);
+}
+
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.form-row .field {
+  margin-bottom: 0;
+  flex: 1 1 180px;
+}
+
+.field--actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 1 auto;
+}
+
+.session-list {
+  display: grid;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.session-card__title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-on-light);
+}
+
+.session-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin: var(--space-3) 0 0;
+}
+
+.session-card__meta div {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.session-card__meta dt {
+  font-family: var(--font-hand);
+  letter-spacing: var(--ls-label);
+  color: var(--color-purple);
+}
+
+.session-card__meta dd {
+  margin: 0;
+}
+
+.alert--inline {
+  display: inline-block;
+  margin: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---- 기록 화면 ---- */
+.record__head {
+  margin-bottom: var(--space-5);
+}
+
+.record__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.record__side {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.panel {
+  background: var(--color-white);
+  border: var(--border);
+  border-radius: var(--radius-frame-sm);
+  box-shadow: var(--shadow-btn);
+  padding: var(--space-5);
+}
+
+.tabs {
+  display: none;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.tabs [aria-selected="true"] {
+  background: var(--color-ink);
+  color: var(--text-on-dark);
+}
+
+.blocks {
+  display: grid;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.block textarea,
+.composer textarea {
+  resize: vertical;
+}
+
+.block__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.block__status {
+  font-size: var(--fs-hint);
+  color: var(--color-purple);
+}
+
+.composer {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.composer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
 /* ---- 작은 화면 ---- */
 @media (max-width: 700px) {
   :root {
@@ -205,6 +352,37 @@ select {
 
   .topbar {
     padding: var(--space-2) var(--space-4);
+  }
+
+  .record__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* 모바일: "기록"과 "요약"을 탭으로 나눈다. */
+  .tabs {
+    display: flex;
+  }
+
+  .record[data-tab="notes"] .record__side,
+  .record[data-tab="summary"] .panel--notes {
+    display: none;
+  }
+
+  /* 모바일: 메모 입력창과 사진 촬영 버튼을 화면 아래쪽에 붙인다(요구사항 2.6). */
+  .dock {
+    position: sticky;
+    bottom: var(--inset);
+    z-index: 1;
+    margin: 0 calc(-1 * var(--space-2));
+    padding: var(--space-3);
+    background: var(--color-lavender);
+    border: var(--border);
+    border-radius: var(--radius-frame-sm);
+    box-shadow: var(--shadow-btn);
+  }
+
+  .page {
+    padding-bottom: var(--space-6);
   }
 }
 
