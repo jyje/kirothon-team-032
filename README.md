@@ -4,8 +4,8 @@
 
 밋업 들으러 가는 당신을 위한 요약 도구
 
-[![CI](https://github.com/jyje/kirothon-team-032/actions/workflows/ci.yml/badge.svg)](https://github.com/jyje/kirothon-team-032/actions/workflows/ci.yml)
-[![Build image](https://github.com/jyje/kirothon-team-032/actions/workflows/build.yml/badge.svg)](https://github.com/jyje/kirothon-team-032/actions/workflows/build.yml)
+[![CI](https://github.com/jyje/open-attendee/actions/workflows/ci.yml/badge.svg)](https://github.com/jyje/open-attendee/actions/workflows/ci.yml)
+[![Build image](https://github.com/jyje/open-attendee/actions/workflows/build.yml/badge.svg)](https://github.com/jyje/open-attendee/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
@@ -108,6 +108,11 @@ FastAPI 서버 ─ SQLite (SQLModel) ─ 파일 저장소 (로컬 볼륨, S3는 
 ## 6. 설치와 실행
 
 필요한 것: [uv](https://docs.astral.sh/uv/)(Python 3.13), Node.js 22, Docker(컨테이너로 실행할 때).
+
+```bash
+git clone https://github.com/jyje/open-attendee.git
+cd open-attendee
+```
 
 ### 로컬 개발 (맥북)
 
@@ -228,7 +233,7 @@ helm lint helm --set image.tag=test
 
 ## 팀
 
-- **팀 번호:** team-032 (레포 이름 기준, 명찰 번호와 맞는지 확인 필요)
+- **팀 번호:** team-032 (해커톤 제출 당시 레포 이름은 `kirothon-team-032`였고, 이후 `open-attendee`로 옮겼습니다)
 - **팀명:** Studio.R4iny (1인팀)
 
 | 이름 | 역할 |

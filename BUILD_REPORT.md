@@ -16,9 +16,9 @@ Kiro의 Spec 흐름(요구사항 → 설계 → 작업 목록 → 작업별 구�
 | 기록 | 작업 실행 이력 | 어떤 작업을 어느 세션에서 실행했는지 Kiro가 남김 | | `.kiro/specs/open-attendee-webapp/tasks.meta.json` |
 | 기타 | 작업 규칙(Steering 역할), 에이전트 스킬, Kiro Crew 멀티 에이전트 | Bot이 작업 전에 `AGENTS.md`를 읽고, 스킬 3개를 씀. Bot 5개가 역할을 나눠 병렬로 일함 | `AGENTS.md`, `.agents/skills/` | 아래 "Bot별 성격과 성과" |
 
-- 웹앱 구현은 [PR #5](https://github.com/jyje/kirothon-team-032/pull/5)로 `main`에 들어갔어요. 이후 [PR #7](https://github.com/jyje/kirothon-team-032/pull/7)(화면 다듬기), [PR #9](https://github.com/jyje/kirothon-team-032/pull/9)(출처가 붙는 AI 요약), [PR #10](https://github.com/jyje/kirothon-team-032/pull/10)(초안, 승인, 마크다운 내보내기)이 병합됐어요.
+- 웹앱 구현은 [PR #5](https://github.com/jyje/open-attendee/pull/5)로 `main`에 들어갔어요. 이후 [PR #7](https://github.com/jyje/open-attendee/pull/7)(화면 다듬기), [PR #9](https://github.com/jyje/open-attendee/pull/9)(출처가 붙는 AI 요약), [PR #10](https://github.com/jyje/open-attendee/pull/10)(초안, 승인, 마크다운 내보내기)이 병합됐어요.
 - 스펙 3개 파일(`requirements.md`, `design.md`, `tasks.md`)의 `main` 반영 여부는 제출 전에 다시 확인해야 해요.
-- 갱신: 작업 목록의 모든 체크박스를 실제 구현과 맞춘 변경이 [PR #12](https://github.com/jyje/kirothon-team-032/pull/12)로 `main`에 병합됐어요.
+- 갱신: 작업 목록의 모든 체크박스를 실제 구현과 맞춘 변경이 [PR #12](https://github.com/jyje/open-attendee/pull/12)로 `main`에 병합됐어요.
 - 같은 브랜치에 Kiro steering 문서, 비밀 파일 읽기 차단, 저장 시 린트, 작업 뒤 테스트 훅(`b5d8777`)과 "매 PR마다 `.kiro` 변경 확인" 규칙(`00a26bc`)도 PR #12로 병합됐어요.
 - 중간 개발 스크린샷과 기능별 증거는 [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md)에 있어요.
 
@@ -70,19 +70,19 @@ Kiro Crew에서 Bot 5개가 역할을 나눠 일했어요. 모두 사람이 검�
 | 디자이니 (Kiro Crew) | 디자인 담당 | 디자인 시스템을 에이전트 스킬로 만듦 | `.agents/skills/kirothon-design-system/SKILL.md` |
 | 디자이니 (Kiro Crew) | 디자인 담당 | 디자인 스토리보드 작성: 화면 영역 8개, 상태 S1~S8, 상태 흐름도, 단축키, 움직임, 만들 템플릿 목록. CSS와 힌트 문구로 추정한 내용이라 스크린샷 확인은 못 함 | `design-system/STORYBOARD.md` |
 | 디자이니 (Kiro Crew) | 디자인 담당 | AWS 공개 디자인 시스템 Cloudscape(Apache-2.0)의 토큰 571개를 CSS 변수로 변환. 출처, 버전, 라이선스를 남기고 `LICENSE`, `NOTICE`를 함께 둠. React 컴포넌트는 스택 미정이라 가져오지 않음. Kiro 쪽 공개 디자인 시스템은 못 찾음 | `docs/references/cloudscape/` |
-| 디자이니 (Kiro Crew) | 디자인 담당 | 별도 워크트리와 브랜치로 커밋하고 [PR #2](https://github.com/jyje/kirothon-team-032/pull/2) 작성. 사람이 병합함 (병합 커밋 `0fb8305`). 커밋 서명 키를 쓸 수 없어 서명 없이 커밋했고 PR 본문에 적음 | PR #2 |
+| 디자이니 (Kiro Crew) | 디자인 담당 | 별도 워크트리와 브랜치로 커밋하고 [PR #2](https://github.com/jyje/open-attendee/pull/2) 작성. 사람이 병합함 (병합 커밋 `0fb8305`). 커밋 서명 키를 쓸 수 없어 서명 없이 커밋했고 PR 본문에 적음 | PR #2 |
 | 디자이니 (Kiro Crew) | 디자인 담당 | `BUILD_REPORT.md`에 디자이니 역할과 성과를 처음 적음 | `BUILD_REPORT.md` |
 | 디자이니 (Kiro Crew) | 디자인 담당 | Vue 프런트(`.worktrees/webapp/webapp/frontend`)를 읽기만 하고 가볍게 검토. 디자인 토큰(`@design/tokens.css`)과 폰트를 그대로 쓰는 점, `api.ts`가 CSRF와 오류를 한 곳에서 다루는 점, 라우터 가드를 확인. 고칠 점 5가지를 제안함: 지운 메모의 저장 요청 되살아남, 삭제 실패 때 알림 없음, 401에서 페이지 전체 새로고침, 불러오기 실패 표시 없음, 떠날 때 저장 안 된 메모 유실. 코드는 바꾸지 않았고 빌드와 타입 검사도 안 돌림 | 대화 기록 (파일 변경 없음) |
 | 문서기 (Kiro Crew) | slidev, 문서, 발표 자료 담당 | 기획 문서를 읽고 slidev 발표 초안 작성. 섹션 7개(표지, 모델 소개, 구조, 사례, 교훈, 향후 방향, 부록). `npm install`과 `npm run build` 종료 코드 0 | `slidev/` |
 | 문서기 (Kiro Crew) | 문서 담당 | `jyje/skills`에서 `centered-readme`와 `git-commit-helper` 스킬을 가져옴 (원본과 바이트 단위로 같음) | `.agents/skills/` |
-| 문서기 (Kiro Crew) | 문서 담당 | 변경점을 10개 묶음으로 나눠 커밋 메시지를 제안하고, 승인받아 서명 없이 커밋 10개 작성. 사람이 병합함 | [PR #1](https://github.com/jyje/kirothon-team-032/pull/1) |
+| 문서기 (Kiro Crew) | 문서 담당 | 변경점을 10개 묶음으로 나눠 커밋 메시지를 제안하고, 승인받아 서명 없이 커밋 10개 작성. 사람이 병합함 | [PR #1](https://github.com/jyje/open-attendee/pull/1) |
 | 문서기 (Kiro Crew) | 문서 담당 | `AGENTS.md`에 Bot별 PR 표시, 한글 커밋 허용, 서명 없는 커밋과 PR로만 올리는 규칙 작성. `git-commit-helper`의 스킬 문서와 검증 스크립트가 한글 제목을 받도록 고치고 테스트 6개 통과 | `AGENTS.md`, `.agents/skills/git-commit-helper/` |
 | 배포기 (Kiro Crew) | 배포 담당. `docker/`와 `helm/` 담당 | 개인 클러스터 `jyje/cluster`와 `jyje/pifanctl` 구조를 참고해 간단한 Helm 차트 작성 (Deployment, Service, Ingress). 앱 코드가 아직 없어서 임시 nginx 이미지를 씀 | `helm/` |
 | 배포기 (Kiro Crew) | 배포 담당 | 임시 Dockerfile과 안내 페이지 작성. 이미지 `kirothon:0.1.0`을 로컬에서 빌드함 | `docker/Dockerfile`, `docker/html/index.html` |
 | 배포기 (Kiro Crew) | 배포 담당 | 임시 폴더에서 팀 저장소로 두 폴더를 옮기고 `helm lint`를 다시 통과시킴. 저장소의 다른 변경은 건드리지 않음 | `docker/`, `helm/` |
 | 배포기 (Kiro Crew) | 배포 담당 | 범위를 웹앱 + 온프레미스 k8s + Helm 네이티브로 줄이고, 맥북·iOS·AWS EKS·ECS는 로드맵으로 넘김 | `docs/ROADMAP.md` |
 | 배포기 (Kiro Crew) | 배포 담당 | `jyje/cluster`에서 mungchilog 배포 방식을 읽고 dev·stg·prd 환경 구성을 설계. 앱 팀원이 올린 차트(PR #5)를 기준으로 맞춤 | `jyje/cluster` |
-| 배포기 (Kiro Crew) | 배포 담당 | 브랜치별 이미지 빌드로 `build.yml` 수정(`main`·`dev`는 `open-attendee-dev`, `stg`는 `open-attendee-stg`, `prd`는 `open-attendee`). 차트 기본 이미지도 맞춤. [PR #6](https://github.com/jyje/kirothon-team-032/pull/6) 병합 | `.github/workflows/build.yml`, `helm/values.yaml` |
+| 배포기 (Kiro Crew) | 배포 담당 | 브랜치별 이미지 빌드로 `build.yml` 수정(`main`·`dev`는 `open-attendee-dev`, `stg`는 `open-attendee-stg`, `prd`는 `open-attendee`). 차트 기본 이미지도 맞춤. [PR #6](https://github.com/jyje/open-attendee/pull/6) 병합 | `.github/workflows/build.yml`, `helm/values.yaml` |
 | 배포기 (Kiro Crew) | 배포 담당 | `dev`, `stg`, `prd` 브랜치를 최신 `main`에서 만들어 origin에 push | 브랜치 3개 |
 | 배포기 (Kiro Crew) | 배포 담당 | `jyje/cluster`에 환경별 Argo CD 앱과 Image Updater 추가. 주소는 `attendee.{dev,stg,app}.jyje.online`. 영어 PR로 올림. [PR #270](https://github.com/jyje/cluster/pull/270) 병합 | `clusters/r4spi/apps/open-attendee-*.yaml` |
 | 배포기 (Kiro Crew) | 배포 담당 | Porkbun에서 도메인 기록을 확인하고 CNAME 3개(`attendee.dev`, `attendee.stg`, `attendee.app`)를 `r5iny.iptime.org.`로 생성 | Porkbun DNS |
@@ -123,7 +123,7 @@ Kiro 활용 증거와 중간 개발 스크린샷은 [`docs/KIRO_USAGE.md`](docs/
 | `attendee.app` 주소 | 응답 없음 |
 
 - 범위 변경: 설치 환경은 웹앱으로 줄이고, 배포는 온프레미스 k8s + Helm 네이티브만 해요. 맥북, iOS, AWS EKS, ECS는 [로드맵](docs/ROADMAP.md)으로 넘겼어요.
-- 끝남: [PR #6](https://github.com/jyje/kirothon-team-032/pull/6)과 [PR #270](https://github.com/jyje/cluster/pull/270) 병합, 브랜치 3개 push, CNAME 3개.
+- 끝남: [PR #6](https://github.com/jyje/open-attendee/pull/6)과 [PR #270](https://github.com/jyje/cluster/pull/270) 병합, 브랜치 3개 push, CNAME 3개.
 - 진행 중: [PR #271](https://github.com/jyje/cluster/pull/271)(봉인 시크릿)은 병합 전이에요. 병합돼야 파드가 떠요. OpenAI 키(`OPENAI_API_KEY`)도 `.env`에서 읽어 값을 출력하지 않고 dev·stg·prd 시크릿 3개에 봉인해 이 PR에 더했어요.
 - 막힌 것: `stg`, `prd` 이미지 빌드. 새 브랜치는 바뀐 파일이 없어 빌드가 안 돌았고, 수동 실행(`gh workflow run`)은 실행 도구가 막았어요. 사람이 직접 실행해야 해요.
 - 아직 안 함: GHCR 패키지 공개 설정, Homer 대시보드 표시, Bedrock·OpenAI 같은 선택 키, 클러스터에서 `Healthy` 확인.
@@ -140,12 +140,12 @@ Kiro 활용 증거와 중간 개발 스크린샷은 [`docs/KIRO_USAGE.md`](docs/
 
 ### 문서기 현황 (갱신: 2026-11-14)
 
-- 끝남: slidev 초안과 빌드, 스킬 2개 가져오기, 커밋 10개와 [PR #1](https://github.com/jyje/kirothon-team-032/pull/1), `AGENTS.md` 규칙. PR #1은 사람이 `main`에 병합했어요. `main`에 `slidev/`, `AGENTS.md`, 스킬 2개가 있어요.
-- 바뀐 것: 제 slidev 초안은 기획 단계 뼈대였어요. 지금 구현에 맞춘 12쪽 발표자료와 `PRESENTATION.pdf`는 [PR #11](https://github.com/jyje/kirothon-team-032/pull/11)에서 새로 써서 `main`에 병합됐어요. 이 PR은 제가 만들지 않았어요.
+- 끝남: slidev 초안과 빌드, 스킬 2개 가져오기, 커밋 10개와 [PR #1](https://github.com/jyje/open-attendee/pull/1), `AGENTS.md` 규칙. PR #1은 사람이 `main`에 병합했어요. `main`에 `slidev/`, `AGENTS.md`, 스킬 2개가 있어요.
+- 바뀐 것: 제 slidev 초안은 기획 단계 뼈대였어요. 지금 구현에 맞춘 12쪽 발표자료와 `PRESENTATION.pdf`는 [PR #11](https://github.com/jyje/open-attendee/pull/11)에서 새로 써서 `main`에 병합됐어요. 이 PR은 제가 만들지 않았어요.
 - 갱신: PR #11 브랜치에 기대 효과를 확인된 것만 남기는 수정(`f370e49`)과 Pretendard·Rubik 글꼴을 PDF에 넣는 커밋(`8299d73`)이 더해졌어요.
 - 갱신: README에 외부 코드와 디자인의 출처와 라이선스가 적혔고(`476d914`), 평가 문서의 제출 체크리스트에 확인한 항목이 표시됐어요(`b51c009`). 둘 다 `main`에 들어 있어요.
 - 아직 안 함: 제 초안의 `npm run dev` 확인, 영문 덱, 화면 확인. 발표자 이름, 발표 시간 같은 빈칸도 남았어요. 발표자료는 PR #11이 이어받았어요.
-- 일부러 보류: `README.md`(이후 [PR #3](https://github.com/jyje/kirothon-team-032/pull/3)에서 새로 작성돼 병합됨), `docs/team.md`(Bot 담당이 추정), `records/`(`docs/`와 겹치는지 미확인).
+- 일부러 보류: `README.md`(이후 [PR #3](https://github.com/jyje/open-attendee/pull/3)에서 새로 작성돼 병합됨), `docs/team.md`(Bot 담당이 추정), `records/`(`docs/`와 겹치는지 미확인).
 - 알려진 문제: 검증 스크립트가 `skills/<이름>` 스코프를 막아요. `main`에도 그대로예요. 그래서 스킬 커밋 4개가 검증에 실패해요. 고치는 후속 커밋이 필요해요.
 - 팀 활동이 곧 끝나서 새 작업은 시작하지 않아요. 문서 다듬기는 프로젝트 중반으로 미뤘어요.
 - 에이전트는 `main`에 직접 push하지 않았어요.
