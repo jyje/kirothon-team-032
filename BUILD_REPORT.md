@@ -61,7 +61,7 @@ Kiro Crew에서 Bot 5개가 역할을 나눠 일했어요. 모두 사람이 검�
 | 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 문서 담당 | 이 저장소의 `AGENTS.md`, `SUBMISSION_GUIDE.md`를 평가와 거버넌스의 기준으로 연결. 서울 주최측 점수표는 아직 못 구해서 빈칸으로 둠. 참여 확정 안내(AUSG x ASBG x AWSKRUG, AWS Korea, 2026.11.14)를 이름과 소속을 가리고 행사 정보로 추가. 공식 사이트([kirothon.ausg.me](https://kirothon.ausg.me))의 당일 타임테이블, 팀 구성(1~4인), 주제 당일 공개도 반영 | `docs/EVALUATION_GOVERNANCE_SECURITY.md` |
 | 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 문서 담당 | Kiro 활용 증거 문서 작성. Kiro Crew와 Kiro IDE 화면, 휴대폰으로 Kiro Crew 게이트웨이(Tailscale)에 접속해 이동 중에 개발한 화면을 정리. 이메일과 사설망 주소는 가림 | `docs/KIRO_USAGE.md`, `docs/screenshots/` |
 | 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 문서 담당 | `$HOME/.kiro` 설정은 평가에 보이지 않아, 프로젝트 `.kiro/`에 steering 3개(팀 규칙, 제품과 행사, 보안)와 비밀 값 없는 `mcp.json`을 만듦. 비밀 값이 있는 홈 설정은 옮기지 않음 | `.kiro/steering/`, `.kiro/settings/mcp.json` |
-| 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 문서 담당 | 정책 점검: 공개 저장소, 비밀 값 추적, 개인정보, 기본 비밀번호, 제출 필수 파일을 `main` 기준으로 확인. 안내문과 어긋난 문서(점수표 없음, 시간표, 장소 층, 주제)를 고치는 PR 작성 | PR (아래 "알려진 문제" 참고) |
+| 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 문서 담당 | 정책 점검: 공개 저장소, 비밀 값 추적, 개인정보, 기본 비밀번호, 제출 필수 파일을 `main` 기준으로 확인. 안내문과 어긋난 문서(점수표 없음, 시간표, 장소 층, 주제)를 고치는 PR 작성 | 이 PR |
 | AI마니아 (Kiro Crew) | 프로바이더 관리자. Bedrock, Codex, OpenAI 키와 추론 환경 담당 | [template-pilot-ai-python](https://github.com/jyje/template-pilot-ai-python)을 참고해 초기 구성. Bedrock API 키(`AWS_BEARER_TOKEN_BEDROCK`)와 OpenAI API 키 지원 | `provider-manager/` |
 | AI마니아 (Kiro Crew) | 프로바이더 관리자 | 공급자 시험 코드 작성. Bedrock 시험 6개 추가 (가짜 응답 사용) | `provider-manager/src/tests/test_providers.py` |
 | AI마니아 (Kiro Crew) | 프로바이더 관리자 | LangChain 대신 Strands SDK로 전환. `PROVIDER`(`bedrock`, `openai`, `codex`)만 바꾸면 같은 에이전트 코드로 동작. `.env.example`에 공급자별 환경변수 정리 | `provider-manager/src/provider_manager/factory.py`, `.env.example` |
