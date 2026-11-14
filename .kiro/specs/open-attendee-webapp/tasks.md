@@ -94,14 +94,14 @@
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 5. [0단계] 자료 업로드, 동의 게이트, 사진과 문서 처리
-  - [ ] 5.1 `consent.py`와 `web/routes_consents.py`: `ConsentGate`
+  - [x] 5.1 `consent.py`와 `web/routes_consents.py`: `ConsentGate`
     - `record_consent`: 세 체크 항목이 모두 참일 때만 기록을 만들고, `obtained_on`과 `method`를 저장한다. 하나라도 거짓이면 검증 오류.
     - `needs_consent`: `kind=recording`이거나 `solo_voice=False`인 `voice_memo`이면 참.
     - `require_consent`: 같은 세션이고 철회되지 않았고 세 항목이 모두 참인 기록만 인정하고, 없으면 `ConsentRequired`를 낸다.
     - 동의 기록 생성과 철회(`revoked_at` 기록)를 하는 라우트를 둔다.
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 10.1, 10.2, 10.3_
 
-  - [ ]* 5.2 Property 2, 3 속성 테스트: 동의 범위, 혼자 한 음성 메모 예외
+  - [x]* 5.2 Property 2, 3 속성 테스트: 동의 범위, 혼자 한 음성 메모 예외
     - **Property 2: 동의 범위**
     - **Validates: Requirements 9.1, 9.2, 9.4, 10.3**
     - **Property 3: 혼자 한 음성 메모 예외**
