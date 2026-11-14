@@ -2,7 +2,7 @@
 
 # Open Attendee
 
-무언갈 들으러 가는 당신을 위한 필기 도구
+밋업 들으러 가는 당신을 위한 요약 도구
 
 [![CI](https://github.com/jyje/kirothon-team-032/actions/workflows/ci.yml/badge.svg)](https://github.com/jyje/kirothon-team-032/actions/workflows/ci.yml)
 [![Build image](https://github.com/jyje/kirothon-team-032/actions/workflows/build.yml/badge.svg)](https://github.com/jyje/kirothon-team-032/actions/workflows/build.yml)
@@ -12,7 +12,7 @@
 
 밋업, 이벤트, 학회, 미팅에서 직접 기록하고 참고자료를 받아, AI로 요약해 원하는 형태로 정리하는 필기 도구입니다. 정리된 초안에 내 인사이트를 더한 뒤 최종 검토합니다. 이 프로젝트는 AWS Kiro Crew로 구성한 AI 에이전트 팀과 함께 만들었습니다.
 
-**Demo:** 배포 주소는 클러스터 배포를 마친 뒤 채웁니다. 컨테이너 이미지는 `ghcr.io/jyje/open-attendee-dev:r6-e6696b2`처럼 공개되어 있으며(최신 태그는 Actions 요약에 나옵니다), 아래 6절의 명령으로 직접 실행해 볼 수 있습니다.
+**Demo:** [https://attendee.app.jyje.online](https://attendee.app.jyje.online) (prd). 소유자 1명용 로그인이 필요합니다. 컨테이너 이미지는 `ghcr.io/jyje/open-attendee`(prd), `-stg`, `-dev`로 공개되어 있고, 아래 6절의 명령으로 직접 실행해 볼 수도 있습니다.
 
 **발표자료:** [`PRESENTATION.pdf`](PRESENTATION.pdf) (12쪽)
 
