@@ -31,9 +31,9 @@ docker compose up --build        # http://localhost:8080
 # 토큰은 화면과 셸 기록에 남지 않게 표준입력으로만 넘겨요. 예: .env의 GHCR_TOKEN
 printf '%s' "$(grep -m1 '^GHCR_TOKEN=' .env | cut -d= -f2-)" | docker login ghcr.io -u jyje --password-stdin
 docker buildx build --platform linux/arm64 -f docker/Dockerfile \
-  -t ghcr.io/jyje/open-attendee:0.1.0 --push .
+  -t ghcr.io/jyje/open-attendee:0.1.1 --push .
 # 이미 arm64 머신에서 빌드한 이미지가 있으면 태그만 붙여서 올려도 돼요:
-#   docker tag open-attendee:dev ghcr.io/jyje/open-attendee:0.1.0 && docker push ghcr.io/jyje/open-attendee:0.1.0
+#   docker tag open-attendee:dev ghcr.io/jyje/open-attendee:0.1.1 && docker push ghcr.io/jyje/open-attendee:0.1.1
 ```
 
 처음 올린 패키지는 비공개예요. 클러스터가 pull secret 없이 받으려면 GitHub의 패키지 설정(Package settings → Danger Zone → Change visibility)에서 **Public**으로 바꿔요. 이 이미지에는 비밀이 들어 있지 않아요(`.dockerignore`가 `.env`를 막아요).
@@ -63,7 +63,7 @@ AI 요약용 키는 나중에 `kubectl ... patch secret` 또는 `kubectl ... cre
 ```bash
 helm upgrade --install open-attendee ./helm \
   --kube-context microk8s -n open-attendee \
-  --set image.tag=0.1.0
+  --set image.tag=0.1.1
 
 kubectl --context microk8s -n open-attendee rollout status deploy/open-attendee
 kubectl --context microk8s -n open-attendee port-forward svc/open-attendee 8080:80   # http://localhost:8080
@@ -73,7 +73,7 @@ kubectl --context microk8s -n open-attendee port-forward svc/open-attendee 8080:
 
 ```bash
 helm upgrade --install open-attendee ./helm --kube-context microk8s -n open-attendee \
-  --set image.tag=0.1.0 --set ingress.enabled=true --set ingress.host=<도메인>
+  --set image.tag=0.1.1 --set ingress.enabled=true --set ingress.host=<도메인>
 ```
 
 ## 4. 확인과 되돌리기
