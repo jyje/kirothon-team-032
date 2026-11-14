@@ -20,6 +20,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
 from open_attendee import web
+from open_attendee.auth import Auth, AuthMiddleware, LoginRateLimiter
 from open_attendee.config import Settings
 from open_attendee.db import init_db, make_engine
 from open_attendee.logging_redact import install_log_redaction
@@ -109,6 +110,9 @@ def create_app(
     )
     app.state.settings = settings
     app.state.provider_factory = factory
+    app.state.auth = Auth(settings)
+    app.state.login_limiter = LoginRateLimiter()
+    app.add_middleware(AuthMiddleware)
 
     for router in discover_routers():
         app.include_router(router)

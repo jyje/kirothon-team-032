@@ -13,7 +13,7 @@ from open_attendee.config import Settings
 from open_attendee.logging_redact import Sensitive
 from open_attendee.main import create_app, discover_routers
 
-from .conftest import OWNER_HASH, SESSION_SECRET
+from .conftest import BASE_URL, OWNER_HASH, SESSION_SECRET, login
 
 API_KEY = "sk-live-0123456789abcdef"
 
@@ -50,7 +50,7 @@ def test_healthz_needs_no_login(client: TestClient) -> None:
 
 def test_healthz_reports_provider_and_region_without_secrets(settings: Settings) -> None:
     app = create_app(settings, provider_factory=lambda: StubProvider())
-    with TestClient(app) as client:
+    with TestClient(app, base_url=BASE_URL) as client:
         res = client.get("/healthz")
     assert res.json()["llm"] == {"configured": True, "provider": "bedrock", "region": "us-east-1"}
     for secret in (OWNER_HASH, SESSION_SECRET, API_KEY, API_KEY[-4:]):
@@ -67,9 +67,9 @@ def test_healthz_is_503_when_database_is_unavailable(settings: Settings) -> None
     assert res.json()["ready"] is False
 
 
-def test_docs_endpoints_are_off(client: TestClient) -> None:
+def test_docs_endpoints_are_off(auth_client: TestClient) -> None:
     for path in ("/docs", "/redoc", "/openapi.json"):
-        assert client.get(path).status_code == 404
+        assert auth_client.get(path).status_code == 404
 
 
 def test_database_file_is_created_in_data_dir(client: TestClient, settings: Settings) -> None:
@@ -90,8 +90,11 @@ def test_validation_error_does_not_echo_input(settings: Settings) -> None:
         return {"count": count}
 
     app.include_router(router)
-    with TestClient(app) as client:
-        res = client.post("/echo-test", params={"count": "my-private-note"})
+    with TestClient(app, base_url=BASE_URL) as client:
+        token = login(client)
+        res = client.post(
+            "/echo-test", params={"count": "my-private-note"}, headers={"X-CSRF-Token": token}
+        )
     assert res.status_code == 422
     assert "my-private-note" not in res.text
 
@@ -105,7 +108,8 @@ def test_unhandled_error_hides_message(settings: Settings) -> None:
         raise RuntimeError(f"프롬프트 원문 {API_KEY}")
 
     app.include_router(router)
-    with TestClient(app, raise_server_exceptions=False) as client:
+    with TestClient(app, base_url=BASE_URL, raise_server_exceptions=False) as client:
+        login(client)
         res = client.get("/boom-test")
     assert res.status_code == 500
     assert API_KEY not in res.text
