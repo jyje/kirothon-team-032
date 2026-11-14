@@ -24,9 +24,9 @@ from open_attendee import web
 from open_attendee.auth import Auth, AuthMiddleware, LoginRateLimiter
 from open_attendee.config import Settings
 from open_attendee.db import init_db, make_engine
-from open_attendee.errors import ConsentRequired, NotFound, ValidationFailed
+from open_attendee.errors import ConsentRequired, NotFound, UploadRejected, ValidationFailed
 from open_attendee.logging_redact import install_log_redaction
-from open_attendee.storage import LocalBlobStore
+from open_attendee.storage import LocalBlobStore, StorageFull
 from open_attendee.web.deps import STATIC_DIR
 
 logger = logging.getLogger("open_attendee")
@@ -166,6 +166,14 @@ def create_app(
     @app.exception_handler(ConsentRequired)
     async def consent_required(_request: Request, exc: ConsentRequired) -> JSONResponse:
         return JSONResponse({"detail": str(exc) or "녹음 동의가 필요해요."}, status_code=403)
+
+    @app.exception_handler(UploadRejected)
+    async def upload_rejected(_request: Request, exc: UploadRejected) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=exc.status_code)
+
+    @app.exception_handler(StorageFull)
+    async def storage_full(_request: Request, _exc: StorageFull) -> JSONResponse:
+        return JSONResponse({"detail": "저장 공간이 부족해요."}, status_code=507)
 
     @app.exception_handler(ValidationFailed)
     async def validation_failed(_request: Request, exc: ValidationFailed) -> JSONResponse:

@@ -124,7 +124,7 @@
     - `supports(mime, kind)` 함수를 두어 0단계는 슬라이드로 PDF만 허용한다(PPTX는 1단계에서 이 함수만 바꿔 연다).
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 7.1_
 
-  - [ ] 5.6 `assets.py`: `AssetService`(업로드 검사와 저장)
+  - [x] 5.6 `assets.py`: `AssetService`(업로드 검사와 저장)
     - 매직 바이트로 형식을 확인하고(사진 JPEG, PNG, HEIC / 슬라이드 PDF / 참고자료 TXT, MD, PDF / 오디오 webm, m4a, mp3, wav), 종류별 크기 상한(사진 20MB, 발표자료 100MB, 참고자료 20MB, 음성 메모 50MB, 녹음 2GB)과 세션당 개수 상한(사진 200장, 발표자료 20개, 참고자료 50개)을 지킨다. 형식 불일치는 415, 상한 초과는 413, 깨진 파일과 암호 PDF는 422, 용량 부족은 507.
     - PPTX 슬라이드는 `DocExtractor.supports`가 거짓이면 PDF로 변환하라는 안내와 함께 415를 돌려준다.
     - `kind=recording`은 `FEATURE_RECORDING=false` 또는 `TRANSCRIBER=none`이면 503. 동의가 필요한 자료는 `require_consent`가 통과하지 않으면 403이고 파일을 저장하지 않는다.
