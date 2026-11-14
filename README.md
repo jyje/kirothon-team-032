@@ -109,6 +109,11 @@ FastAPI 서버 ─ SQLite (SQLModel) ─ 파일 저장소 (로컬 볼륨, S3는 
 
 필요한 것: [uv](https://docs.astral.sh/uv/)(Python 3.13), Node.js 22, Docker(컨테이너로 실행할 때).
 
+```bash
+git clone https://github.com/jyje/open-attendee.git
+cd open-attendee
+```
+
 ### 로컬 개발 (맥북)
 
 ```bash
