@@ -8,7 +8,7 @@ info: |
 
 # Open Attendee
 
-무언갈 들으러 가는 당신을 위한 필기 도구
+밋업 들으러 가는 당신을 위한 요약 도구
 
 Kirothon 2026 Seoul · 팀 Studio.R4iny (team-032)
 
