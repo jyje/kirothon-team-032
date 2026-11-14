@@ -14,6 +14,7 @@ from sqlmodel import Session
 from open_attendee.assets import AssetService
 from open_attendee.auth import current_owner
 from open_attendee.config import Settings
+from open_attendee.llm import LLMGateway, build_gateway
 from open_attendee.sessions import SessionService
 from open_attendee.storage import BlobStore
 
@@ -51,7 +52,17 @@ def get_asset_service(
     return AssetService(db, blobs, settings)
 
 
+def get_gateway(request: Request) -> LLMGateway | None:
+    """주입된 게이트웨이(테스트)가 있으면 그것을, 없으면 설정된 제공자로 만든다. 없으면 None."""
+    injected = getattr(request.app.state, "llm_gateway", None)
+    if injected is not None:
+        return injected
+    return build_gateway(request.app.state.settings)
+
+
 Owner = Annotated[str, Depends(get_owner)]
 Sessions = Annotated[SessionService, Depends(get_session_service)]
 Assets = Annotated[AssetService, Depends(get_asset_service)]
 AppSettings = Annotated[Settings, Depends(get_settings)]
+Gateway = Annotated[LLMGateway | None, Depends(get_gateway)]
+Db = Annotated[Session, Depends(get_db)]
