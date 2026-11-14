@@ -1,0 +1,86 @@
+/* KIROTHON 2026 design tokens
+   Source: https://kirothon-timer.vercel.app/ (style.css?v=15) */
+:root {
+  /* Color: brand */
+  --color-ink: #0b0b0b;          /* frame, text on light, outlines */
+  --color-purple: #5038a0;       /* ground, primary button */
+  --color-purple-hover: #6247bf; /* primary button hover */
+  --color-purple-dark: #2f2266;  /* flash background */
+  --color-kiro: #9046ff;         /* accent, progress, warning */
+  --color-lilac: #b79be0;        /* labels, focus ring */
+  --color-lavender: #dcc6ee;     /* page bg, hover, hint */
+  --color-white: #ffffff;
+  --color-track: #2a2140;        /* progress track */
+
+  /* Color: party (end-of-event only) */
+  --color-party-pink: #ff5fd2;
+  --color-party-cyan: #4de1ff;
+  --color-party-yellow: #ffd23f;
+  --color-party-bg-1: #1c0a33;
+  --color-party-bg-2: #0a1530;
+  --color-party-bg-3: #2a0a28;
+
+  /* Color: semantic */
+  --bg-page: var(--color-lavender);
+  --bg-scene: var(--color-ink);
+  --text-on-dark: var(--color-white);
+  --text-muted-on-dark: var(--color-lilac);
+  --text-on-light: var(--color-ink);
+  --accent: var(--color-kiro);
+  --focus-ring: var(--color-lilac);
+
+  /* Type */
+  --font-body: "Rubik", system-ui, sans-serif;           /* 500, 700 */
+  --font-display: "Rubik Mono One", ui-monospace, monospace; /* numbers */
+  --font-hand: "Permanent Marker", cursive;              /* labels, speech */
+  --fs-btn-sm: 13px;
+  --fs-hint: 12px;
+  --fs-btn-seg: 14px;
+  --fs-btn: 15px;
+  --fs-btn-primary: 17px;
+  /* Stage text scales with its container (cqw) */
+  --fs-time: 18cqw;
+  --fs-sub: 4.4cqw;
+  --fs-quip: 4.6cqw;
+  --fs-label: 3.4cqw;
+  --lh-time: 1.05;
+  --ls-time: -0.03em;
+  --ls-label: 0.12em;
+
+  /* Space */
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 10px;
+  --space-4: 12px;
+  --space-5: 18px;
+  --space-6: 22px;
+
+  /* Radius */
+  --radius-pill: 999px;
+  --radius-frame: 48px;
+  --radius-frame-sm: 28px;
+  --radius-bubble: 1.2em;
+
+  /* Border and shadow (sticker look: thick outline + hard shadow) */
+  --border-w: 3px;
+  --border: var(--border-w) solid var(--color-ink);
+  --shadow-btn: 0 4px 0 var(--color-ink);
+  --shadow-btn-pressed: 0 1px 0 var(--color-ink);
+  --shadow-kiro: 0 18px 30px rgba(144, 70, 255, 0.35);
+  --frame-ring: 0 0 0 5px var(--color-ink);
+  --frame-ring-urgent: 0 0 0 5px var(--color-ink), 0 0 0 12px var(--color-kiro);
+
+  /* Layout */
+  --inset: 12px;       /* 6px under 700px */
+  --stage-ratio: 1.6;  /* 16:10 fixed stage */
+
+  /* Motion */
+  --dur-fast: 0.08s;
+  --dur-base: 0.2s;
+  --dur-slow: 0.4s;
+  --ease-pop: cubic-bezier(0.3, 1.5, 0.5, 1);
+  --ease-hop: cubic-bezier(0.3, 0.7, 0.4, 1);
+
+  /* Breakpoint (reference only; CSS vars cannot be used in @media) */
+  --bp-mobile: 700px;
+}
