@@ -33,11 +33,14 @@ export async function api<T = unknown>(
   const isJson = res.headers.get('content-type')?.includes('application/json')
   const data = isJson ? await res.json() : null
   if (!res.ok) {
+    // 서버 오류는 {"error": {code, message}} 또는 {"detail": "..."} 모양으로 온다.
     const err = data?.error
+    const detail = typeof data?.detail === 'string' ? data.detail : undefined
+    if (res.status === 401 && path !== '/api/login') window.location.assign('/login')
     throw new ApiError(
       res.status,
       err?.code ?? 'http_error',
-      err?.message ?? `요청에 실패했어요 (${res.status})`,
+      err?.message ?? detail ?? `요청에 실패했어요 (${res.status})`,
     )
   }
   return data as T
