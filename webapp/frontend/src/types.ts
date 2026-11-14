@@ -35,3 +35,13 @@ export type AssetList = {
   limits: Record<string, number>
   recording_enabled: boolean
 }
+
+export type SummarySource = { kind: string; locator: string; target_id: string }
+export type SummaryBullet = { text: string; sources: SummarySource[] }
+export type Summary = { id: string; created_at: string; bullets: SummaryBullet[] }
+export type SummaryResponse = {
+  summary: Summary | null
+  llm_configured: boolean
+  dropped_bullets?: number
+  truncated?: boolean
+}
