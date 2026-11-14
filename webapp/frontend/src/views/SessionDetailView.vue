@@ -142,7 +142,9 @@ onBeforeUnmount(() => timers.forEach((t) => window.clearTimeout(t)))
           </div>
         </li>
       </ol>
-      <button class="btn btn-primary" type="button" @click="addBlock">+ 메모 추가</button>
+      <div class="dock">
+        <button class="btn btn-primary" type="button" @click="addBlock">+ 메모 추가</button>
+      </div>
 
       <AssetsPanel ref="assetsPanel" :session-id="id" :blocks="rows" />
     </template>
@@ -164,4 +166,10 @@ h2 { margin: 0; font-family: var(--font-hand); font-weight: 400; letter-spacing:
 .block[data-state='dirty'] textarea, .block[data-state='saving'] textarea { border-color: var(--color-kiro); }
 .block[data-state='error'] textarea { border-color: var(--color-kiro); box-shadow: 0 0 0 3px var(--color-purple-dark); }
 .block-foot { display: flex; justify-content: space-between; align-items: center; }
+.dock { display: grid; }
+/* 모바일에서는 메모 추가 버튼을 엄지가 닿는 화면 아래에 붙여 둔다(요구사항 2.6). */
+@media (max-width: 700px) {
+  .dock { position: sticky; bottom: var(--space-4); z-index: 2; }
+  .page-body { padding-bottom: var(--space-4); }
+}
 </style>

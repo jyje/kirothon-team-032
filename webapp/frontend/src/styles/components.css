@@ -30,4 +30,5 @@
   border: var(--border);
   border-radius: var(--radius-pill);
   padding: var(--space-3) var(--space-5);
+  min-height: 44px; /* 날짜 칸이 더 커 보이지 않게 입력 높이를 맞춘다 */
 }

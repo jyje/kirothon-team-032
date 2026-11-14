@@ -24,6 +24,9 @@ config:
   AWS_REGION: us-east-1
   # 이 클러스터의 기본 저장소(subdir-usb)는 NFS라서 SQLite WAL을 쓰지 않는다.
   SQLITE_JOURNAL_MODE: delete
+  # 인그레스 뒤에서는 모든 요청이 인그레스 IP로 보인다. X-Forwarded-For를 믿어야 로그인 제한이
+  # 실제 접속자 IP별로 걸려, 남이 소유자를 잠그지 못한다. 파드는 인그레스를 통해서만 열린다.
+  FORWARDED_ALLOW_IPS: "*"
 
 persistence:
   enabled: true

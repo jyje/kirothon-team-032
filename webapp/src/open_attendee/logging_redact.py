@@ -59,20 +59,26 @@ class Redactor:
             text = pattern.sub(REDACTED, text)
         return text
 
+    def _redact_arg(self, value: object) -> object:
+        """숫자와 None은 그대로 두고(`%d`가 깨지지 않게), 나머지는 글자로 바꿔 가린다."""
+        if value is None or isinstance(value, bool | int | float):
+            return value
+        return self.redact_text(str(value))
+
     def redact_record(self, record: logging.LogRecord) -> logging.LogRecord:
-        if record.name == "uvicorn.access" and isinstance(record.args, tuple):
-            # uvicorn의 접근 로그 포매터는 `args`를 (주소, 메서드, 경로, 버전, 상태)로 풀어 쓴다.
-            # 구조를 지키면서 문자열 값만 가린다.
-            record.args = tuple(
-                self.redact_text(a) if isinstance(a, str) else a for a in record.args
-            )
-            return record
-        try:
-            message = record.getMessage()
-        except (TypeError, ValueError):
-            message = str(record.msg)
-        record.msg = self.redact_text(message)
-        record.args = None
+        # 인자를 지우지 않고 값만 가린다. uvicorn은 인자 구조(접근 로그)와 `color_message`
+        # (시작 로그의 주소와 포트)를 나중에 다시 포맷하므로 구조를 지켜야 한다.
+        if isinstance(record.msg, str):
+            record.msg = self.redact_text(record.msg)
+        else:
+            record.msg = self.redact_text(str(record.msg))
+        if isinstance(record.args, tuple):
+            record.args = tuple(self._redact_arg(a) for a in record.args)
+        elif isinstance(record.args, dict):
+            record.args = {k: self._redact_arg(v) for k, v in record.args.items()}
+        color_message = record.__dict__.get("color_message")
+        if isinstance(color_message, str):
+            record.__dict__["color_message"] = self.redact_text(color_message)
         if record.exc_info and not record.exc_text:
             record.exc_text = self.redact_text(logging.Formatter().formatException(record.exc_info))
         elif record.exc_text:

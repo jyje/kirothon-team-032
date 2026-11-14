@@ -26,3 +26,22 @@ def test_access_log_keeps_args_and_masks_secrets() -> None:
     assert "super-secret-value" not in line
     assert "GET" in line
     assert "200" in line
+
+
+def test_startup_log_keeps_address_and_port_in_color_message() -> None:
+    from uvicorn.logging import DefaultFormatter
+
+    redactor = Redactor()
+    record = logging.LogRecord(
+        "uvicorn.error",
+        logging.INFO,
+        __file__,
+        1,
+        "Uvicorn running on %s://%s:%d (Press CTRL+C to quit)",
+        ("http", "0.0.0.0", 8080),
+        None,
+    )
+    record.__dict__["color_message"] = "Uvicorn running on %s://%s:%d (Press CTRL+C to quit)"
+    redactor.redact_record(record)
+    line = DefaultFormatter("%(levelprefix)s %(message)s", use_colors=False).format(record)
+    assert "http://0.0.0.0:8080" in line

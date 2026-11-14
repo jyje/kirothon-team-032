@@ -2,6 +2,18 @@
 
 > **변경 메모 (2026-11-14):** 화면은 Jinja2와 HTMX 대신 **Vue 3 + Vite**(`webapp/frontend/`)로 만들고, 서버는 `/api/...` JSON API만 낸다. 빌드된 화면(`frontend/dist`)은 FastAPI가 서빙한다. 아래 본문에서 Jinja2, HTMX, "서버 렌더링 화면"을 말하는 부분은 이 결정으로 대체된다(본문은 리뷰 때 함께 고친다). 배포는 `docker/Dockerfile`(다단계), `docker-compose.yml`, `helm/`이고 클러스터의 기본 저장소가 NFS라서 `SQLITE_JOURNAL_MODE=delete`를 쓴다(요구사항 27.9의 WAL은 기본값으로만 남는다). 자세한 내용은 `docs/deploy.md`.
 
+## 진행 현황 (2026-11-14 17:00 기준, PR #5 머지 후)
+
+| 그룹 | 상태 | 비고 |
+|---|---|---|
+| 1~3 뼈대, 로그인, 세션, 메모 | 완료 | 화면은 Vue, 서버는 `/api` JSON |
+| 5 자료 업로드, 동의 게이트, 사진과 문서 처리 | 완료 | 5.9의 화면 절반은 Vue `AssetsPanel`로 대체 |
+| 12 배포 | 완료 | `docker/Dockerfile`, `docker-compose.yml`, `helm/`, `.github/workflows/` |
+| 7~11 작업 큐, LLM, 출처 추출, 초안, 검증, 승인, 내보내기 | **미착수** | 다음 PR. 데모의 핵심 |
+| 13~14 통합 시험 | 미착수 | |
+| 15~21 (1단계) | 미착수 | |
+
+
 ## Overview
 
 `design.md`의 설계를 Python(FastAPI, SQLModel, LangGraph, Hypothesis)으로 구현합니다. 구현 언어는 설계가 이미 Python 3.13으로 정했으므로 따로 묻지 않습니다.
@@ -317,17 +329,17 @@
     - _Requirements: 22.1, 22.2, 22.3, 22.5, 22.6, 22.8, 23.2, 23.3, 23.4, 24.3, 24.4_
 
 - [ ] 12. [0단계] 배포: 컨테이너 이미지, helm, 설정 예시
-  - [ ] 12.1 `docker/Dockerfile`을 앱 이미지로 바꾸기
+  - [x] 12.1 `docker/Dockerfile`을 앱 이미지로 바꾸기
     - 기존 nginx 임시 페이지 이미지를 `webapp/`을 설치하는 Python 3.13 + uv 이미지로 바꾼다. 비루트 사용자와 8080 포트를 유지하고, `linux/amd64`, `linux/arm64` 둘 다 빌드되게 한다.
     - `stt` 선택 의존성은 빌드 인자로만 켜고 `linux/arm64` 이미지에는 넣지 않는다. `.env`와 `data/`가 이미지에 들어가지 않게 `.dockerignore`를 둔다.
     - _Requirements: 27.1, 27.2, 27.5_
 
-  - [ ] 12.2 `helm/` 차트 고치기
+  - [x] 12.2 `helm/` 차트 고치기
     - 데이터용 PVC, Secret을 넣는 `envFrom`, `/healthz` 준비 상태 검사(readiness), 메모리 한도 128Mi에서 512Mi로 상향을 추가한다.
     - `replicaCount`를 1로 고정하고 `allowPrivilegeEscalation: false`를 유지한다. `values.yaml`에서 Raspberry Pi 온프레미스 기본 `TRANSCRIBER`를 `none`으로 둔다. 시크릿 값은 values에 넣지 않는다.
     - _Requirements: 27.3, 27.4, 27.6, 26.1_
 
-  - [ ] 12.3 `webapp/.env.example`과 실행 명령
+  - [x] 12.3 `webapp/.env.example`과 실행 명령
     - 설계의 환경 변수 표에 맞는 `webapp/.env.example`(값은 비워 둠)을 만든다. 맥북에서 `uv run uvicorn open_attendee.main:app --host 0.0.0.0 --port 8080`과 `docker run`으로 시작하는 방법을 `webapp/README.md`에 짧게 적는다.
     - `.gitignore`가 `.env`를 막고 있는지 확인한다.
     - _Requirements: 26.6, 27.7_
