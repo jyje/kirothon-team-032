@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Python 저장 시 ruff 검사",
+      "trigger": "PostFileSave",
+      "description": "서버 코드를 저장하면 ruff 린트와 포맷 검사를 바로 실행해 CI에서 깨지는 일을 줄인다.",
+      "matcher": "webapp/src/.*\\.py$",
+      "action": {
+        "type": "command",
+        "command": "cd webapp/src && uv run ruff check . && uv run ruff format --check .",
+        "timeout": 60
+      }
+    }
+  ]
+}

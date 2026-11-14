@@ -24,5 +24,10 @@ inclusion: always
 - 화면: `cd webapp/frontend && npm run build`
 - 차트: `helm lint helm --set image.tag=test`
 
+## 훅 (`.kiro/hooks/`)
+- `block-secret-read`: 에이전트가 `.env`, `.env.local`을 읽으려 하면 막아요(`.env.example`은 허용). 스크립트는 `guard-env.py`.
+- `lint-python-on-save`: `webapp/src`의 Python 파일을 저장하면 ruff 린트와 포맷 검사를 실행해요.
+- `test-after-task`: 스펙 작업 하나가 끝나면 서버 테스트 전체를 실행해요.
+
 ## 제출 전 확인
 `.kiro/`(specs, steering, hooks)는 Kiro에서 만든 그대로 커밋해야 해요. PR을 열기 전에 새로 생기거나 바뀐 `.kiro/` 파일이 모두 커밋에 들어 있는지 확인해요.
