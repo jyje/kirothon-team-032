@@ -2,17 +2,19 @@
 
 > **변경 메모 (2026-11-14):** 화면은 Jinja2와 HTMX 대신 **Vue 3 + Vite**(`webapp/frontend/`)로 만들고, 서버는 `/api/...` JSON API만 낸다. 빌드된 화면(`frontend/dist`)은 FastAPI가 서빙한다. 아래 본문에서 Jinja2, HTMX, "서버 렌더링 화면"을 말하는 부분은 이 결정으로 대체된다(본문은 리뷰 때 함께 고친다). 배포는 `docker/Dockerfile`(다단계), `docker-compose.yml`, `helm/`이고 클러스터의 기본 저장소가 NFS라서 `SQLITE_JOURNAL_MODE=delete`를 쓴다(요구사항 27.9의 WAL은 기본값으로만 남는다). 자세한 내용은 `docs/deploy.md`.
 
-## 진행 현황 (2026-11-14 17:00 기준, PR #5 머지 후)
+## 진행 현황 (2026-11-14 17:15 기준)
 
 | 그룹 | 상태 | 비고 |
 |---|---|---|
 | 1~3 뼈대, 로그인, 세션, 메모 | 완료 | 화면은 Vue, 서버는 `/api` JSON |
 | 5 자료 업로드, 동의 게이트, 사진과 문서 처리 | 완료 | 5.9의 화면 절반은 Vue `AssetsPanel`로 대체 |
+| 8 LLM 게이트웨이 | 완료 | `FakeProvider` 대신 `ask` 함수를 주입(`llm.py`) |
+| 9, 11 출처 대응표, 요약, 초안, 지지 판정, 검토, 승인, 내보내기 | **동작, 설계와 다르게 단순화** | `sources.py`, `pipeline/summary.py`, `drafts.py`. LangGraph, 작업 큐, 별도 사실 추출 단계 없이 요청 안에서 동기 실행. 템플릿은 블로그 1개 고정. 문장마다 `Fact` 1개를 만들고 지지 판정은 LLM 배치 호출 1회 |
 | 12 배포 | 완료 | `docker/Dockerfile`, `docker-compose.yml`, `helm/`, `.github/workflows/` |
-| 7~11 작업 큐, LLM, 출처 추출, 초안, 검증, 승인, 내보내기 | **미착수** | 다음 PR. 데모의 핵심 |
-| 13~14 통합 시험 | 미착수 | |
-| 15~21 (1단계) | 미착수 | |
-
+| 7 작업 큐, 워커, 이벤트 스트림 | 미착수 | 요약과 초안이 동기라서 아직 필요하지 않음 |
+| 9.5~9.6 템플릿 목록과 저장 | 미착수 | |
+| 13~14 통합 시험, 적대적 시험 | 일부 | 구분자 주입 차단과 지어낸 라벨 제거는 테스트로 확인. 전체 흐름 통합 테스트는 헤드리스 Chrome으로 수동 확인 |
+| 15~21 (1단계) | 미착수 | 녹음, 전사, 얼굴 흐림, PPTX, S3 포함 |
 
 ## Overview
 
@@ -198,7 +200,7 @@
     - _Requirements: 17.1, 17.2, 17.3, 17.4, 17.5, 17.6, 17.7_
 
 - [ ] 8. [0단계] LLM 게이트웨이
-  - [ ] 8.1 `llm.py`: `LLMGateway`와 `tests/fakes.py`의 `FakeProvider`
+  - [x] 8.1 `llm.py`: `LLMGateway`와 `tests/fakes.py`의 `FakeProvider`
     - `provider_manager.registry.get_provider()`로 제공자를 얻고(`PROVIDER` 환경 변수), 생성자로 `Provider`를 주입할 수 있게 한다. 제공자 이름이 `codex`이면 생성을 거부한다.
     - `complete_json(task, prompt, schema)`: 응답에서 첫 JSON 객체를 꺼내 pydantic으로 검증하고, 실패하면 오류 내용을 붙여 1회 다시 묻고, 그래도 실패하면 `LLMError`. 429는 `LLMRateLimited`로 구분해 낸다.
     - 로그에는 `provider.describe()`, 작업 이름, 소요 시간, 입력과 출력 글자 수만 남긴다.
@@ -210,7 +212,7 @@
     - _Requirements: 15.2, 15.3, 15.4, 15.5, 15.6_
 
 - [ ] 9. [0단계] 출처 대응표, 사실 추출, 템플릿, 초안, 검증
-  - [ ] 9.1 `pipeline/sources.py`: `SourceMap`과 `collect_sources`
+  - [x] 9.1 `pipeline/sources.py`: `SourceMap`과 `collect_sources`
     - 세션의 비어 있지 않은 메모 블록(당시 `revision` 기록), 유효한 동의가 있는 전사 구간, 설명이 있는 사진, 발표자료와 참고자료의 `DocChunk`를 `S1`, `S2`, ... 라벨로 겹치지 않게 묶는다. `locator`는 사람이 읽는 위치(메모 순번, 타임스탬프, 사진 파일 이름, 자료 이름과 쪽 번호).
     - 모든 대상은 같은 세션 소속으로 한정한다. 프롬프트에는 라벨과 텍스트만 넣고 실제 ID는 서버에만 둔다. 24,000자 이하 묶음으로 나누는 `batches`를 제공한다.
     - _Requirements: 6.8, 18.1, 18.2, 18.3, 18.4, 18.5, 18.7_
