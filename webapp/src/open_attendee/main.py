@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from provider_manager.base import Provider
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -24,6 +25,7 @@ from open_attendee.auth import Auth, AuthMiddleware, LoginRateLimiter
 from open_attendee.config import Settings
 from open_attendee.db import init_db, make_engine
 from open_attendee.logging_redact import install_log_redaction
+from open_attendee.web.deps import STATIC_DIR
 
 logger = logging.getLogger("open_attendee")
 
@@ -114,6 +116,7 @@ def create_app(
     app.state.login_limiter = LoginRateLimiter()
     app.add_middleware(AuthMiddleware)
 
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     for router in discover_routers():
         app.include_router(router)
 

@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-import html
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import RedirectResponse, Response
 
 from open_attendee.auth import (
     LOGIN_PATH,
     LOGIN_REDIRECT,
     Auth,
     LoginRateLimiter,
-    csrf_token_for,
 )
+from open_attendee.web.deps import templates
 
 router = APIRouter()
 
@@ -26,18 +25,9 @@ def _login_page(request: Request, *, error: str | None = None, status_code: int 
     if not getattr(request.state, "csrf_seed", None):
         new_seed = auth.new_anonymous_seed()
         request.state.csrf_seed = new_seed
-    token = html.escape(csrf_token_for(request))
-    message = f'<p role="alert">{html.escape(error)}</p>' if error else ""
-    body = (
-        '<!doctype html><html lang="ko"><meta charset="utf-8"><title>로그인</title>'
-        f"<main>{message}"
-        f'<form method="post" action="{LOGIN_PATH}">'
-        f'<input type="hidden" name="csrf_token" value="{token}">'
-        '<label>비밀번호 <input type="password" name="password" autocomplete="current-password"'
-        " required></label>"
-        '<button type="submit">로그인</button></form></main></html>'
+    response = templates.TemplateResponse(
+        request, "login.html", {"error": error}, status_code=status_code
     )
-    response = HTMLResponse(body, status_code=status_code)
     if new_seed:
         auth.set_anonymous_csrf_cookie(response, new_seed)
     return response
