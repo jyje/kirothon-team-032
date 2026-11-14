@@ -474,7 +474,7 @@
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 22. 브랜치와 PR 올리기 (AGENTS.md 규칙)
-  - [ ] 22.1 커밋 정리와 PR 열기 → PR #5, #7, #8, #9 머지, #10 열림. 범위가 끝날 때까지 반복
+  - [ ] 22.1 커밋 정리와 PR 열기 → PR #5, #7~#10 머지, 이 PR(.kiro 보강) 열림. 범위가 끝날 때까지 반복
     - 작업은 `crew/<영역>/<주제>` 형식의 브랜치(예: `crew/webapp/open-attendee`)에서 한다. `main`에 직접 push하지 않는다.
     - 커밋 제목은 `<gitmoji> <type>(<domain>): <title>` 형식이고 한글로 써도 된다. 본문에는 이유를 한두 문장으로 적고 로컬 경로와 토큰은 넣지 않는다. Kiro Crew Bot의 커밋은 서명하지 않으며, 그래서 PR로만 올린다.
     - 커밋 전에 `git status`로 `.env`, `data/`, API 키가 들어 있지 않은지 확인한다. 파일은 이름을 지정해서 추가하고 `git add .`는 쓰지 않는다.
