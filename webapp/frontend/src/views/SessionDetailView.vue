@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError } from '@/api'
 import AssetsPanel from '@/components/AssetsPanel.vue'
+import SummaryPanel from '@/components/SummaryPanel.vue'
 import type { Block, SessionDetail } from '@/types'
 
 type Row = Block & { state: 'saved' | 'dirty' | 'saving' | 'error'; message: string }
@@ -145,6 +146,8 @@ onBeforeUnmount(() => timers.forEach((t) => window.clearTimeout(t)))
       <div class="dock">
         <button class="btn btn-primary" type="button" @click="addBlock">+ 메모 추가</button>
       </div>
+
+      <SummaryPanel :session-id="id" />
 
       <AssetsPanel ref="assetsPanel" :session-id="id" :blocks="rows" />
     </template>
