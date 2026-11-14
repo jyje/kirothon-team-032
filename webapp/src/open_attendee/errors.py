@@ -9,3 +9,7 @@ class NotFound(LookupError):
 
 class ValidationFailed(ValueError):
     """입력이 규칙을 어겼다. 메시지는 사용자에게 보여 줄 수 있는 이유만 담는다."""
+
+
+class ConsentRequired(Exception):
+    """동의가 필요한 자료인데 유효한 동의 기록이 없다. 라우터가 403으로 바꾼다(요구사항 10.4)."""
