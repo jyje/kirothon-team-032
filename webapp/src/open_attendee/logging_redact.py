@@ -60,6 +60,13 @@ class Redactor:
         return text
 
     def redact_record(self, record: logging.LogRecord) -> logging.LogRecord:
+        if record.name == "uvicorn.access" and isinstance(record.args, tuple):
+            # uvicorn의 접근 로그 포매터는 `args`를 (주소, 메서드, 경로, 버전, 상태)로 풀어 쓴다.
+            # 구조를 지키면서 문자열 값만 가린다.
+            record.args = tuple(
+                self.redact_text(a) if isinstance(a, str) else a for a in record.args
+            )
+            return record
         try:
             message = record.getMessage()
         except (TypeError, ValueError):
