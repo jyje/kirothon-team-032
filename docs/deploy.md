@@ -27,12 +27,18 @@
 docker compose up --build        # http://localhost:8080
 
 # 클러스터용 arm64 이미지를 레지스트리에 올려요 (ghcr.io 예시)
-echo "$GHCR_TOKEN" | docker login ghcr.io -u jyje --password-stdin   # write:packages 권한 토큰
+# GHCR는 fine-grained 토큰을 지원하지 않아요. classic 토큰에 write:packages 하나만 주세요(만료 7일 권장).
+# 토큰은 화면과 셸 기록에 남지 않게 표준입력으로만 넘겨요. 예: .env의 GHCR_TOKEN
+printf '%s' "$(grep -m1 '^GHCR_TOKEN=' .env | cut -d= -f2-)" | docker login ghcr.io -u jyje --password-stdin
 docker buildx build --platform linux/arm64 -f docker/Dockerfile \
   -t ghcr.io/jyje/open-attendee:0.1.0 --push .
+# 이미 arm64 머신에서 빌드한 이미지가 있으면 태그만 붙여서 올려도 돼요:
+#   docker tag open-attendee:dev ghcr.io/jyje/open-attendee:0.1.0 && docker push ghcr.io/jyje/open-attendee:0.1.0
 ```
 
-패키지가 비공개면 파드가 이미지를 받을 수 있게 pull secret을 만들고 `--set imagePullSecrets[0].name=ghcr-pull`로 넘겨요.
+처음 올린 패키지는 비공개예요. 클러스터가 pull secret 없이 받으려면 GitHub의 패키지 설정(Package settings → Danger Zone → Change visibility)에서 **Public**으로 바꿔요. 이 이미지에는 비밀이 들어 있지 않아요(`.dockerignore`가 `.env`를 막아요).
+
+비공개로 두려면 `read:packages` 토큰으로 pull secret을 만들고 `--set imagePullSecrets[0].name=ghcr-pull`로 넘겨요.
 
 ## 2. Secret 만들기 (한 번만)
 
