@@ -45,3 +45,26 @@ export type SummaryResponse = {
   dropped_bullets?: number
   truncated?: boolean
 }
+
+export type DraftSentence = {
+  id: string
+  text: string
+  origin: 'ai' | 'ai_edited' | 'user_insight'
+  verify_status: 'verified' | 'unverified' | 'kept_as_opinion' | 'n/a'
+  verify_note: string | null
+  sources: { kind: string; locator: string }[]
+}
+export type DraftSection = {
+  id: string
+  title: string
+  insight_slot: boolean
+  sentences: DraftSentence[]
+}
+export type Draft = {
+  id: string
+  status: 'generating' | 'in_review' | 'approved' | 'failed'
+  approved_at: string | null
+  unverified_count: number
+  sections: DraftSection[]
+}
+export type DraftResponse = { draft: Draft | null; llm_configured: boolean }

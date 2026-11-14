@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError } from '@/api'
 import AssetsPanel from '@/components/AssetsPanel.vue'
+import DraftPanel from '@/components/DraftPanel.vue'
 import SummaryPanel from '@/components/SummaryPanel.vue'
 import type { Block, SessionDetail } from '@/types'
 
@@ -148,6 +149,8 @@ onBeforeUnmount(() => timers.forEach((t) => window.clearTimeout(t)))
       </div>
 
       <SummaryPanel :session-id="id" />
+
+      <DraftPanel :session-id="id" />
 
       <AssetsPanel ref="assetsPanel" :session-id="id" :blocks="rows" />
     </template>
