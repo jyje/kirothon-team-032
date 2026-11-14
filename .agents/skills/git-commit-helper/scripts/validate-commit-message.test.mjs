@@ -33,3 +33,7 @@ test('requires a kebab-case scope and lowercase title', () => {
   assert.equal(validateCommitMessage('✨ feat(MyDomain): add a feature').valid, false);
   assert.equal(validateCommitMessage('✨ feat(my-domain): Add a feature').valid, false);
 });
+
+test('accepts a Korean title', () => {
+  assert.deepEqual(validateCommitMessage('✨ feat(my-domain): 사용자 기능 추가'), { valid: true });
+});
