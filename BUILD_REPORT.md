@@ -5,13 +5,51 @@
 
 ## Kiro 활용 내역
 
-| 단계 | 사용한 Kiro 기능 | 무엇을 했는지 | 결과물 위치 |
+### 스펙 주도 개발 (Kiro Spec)
+
+Kiro의 Spec 흐름(요구사항 → 설계 → 작업 목록 → 작업별 구현)을 따라 웹앱 `open-attendee-webapp`을 만들었어요. 각 단계는 앞 단계의 파일을 입력으로 삼아요.
+
+| 단계 | 사용한 Kiro 기능 | 무엇을 했는지 | 기반 파일 (입력) | 결과물 위치 |
+|---|---|---|---|---|
+| 기획 | Spec: requirements | 설계 초안에서 요구사항 28개를 뽑아 EARS 문장으로 정리. 0단계(해커톤 데모)와 1단계(MVP)로 나누고, 사용자가 정하지 않은 항목은 가정(A1~)으로 표시 | `docs/readme-interview.md`(1순위), `records/docs/open-attendee-planning.md`, `records/docs/privacy-policy.md`, `README.md` | `.kiro/specs/open-attendee-webapp/requirements.md` (539줄) |
+| 설계 | Spec: design | 구조, 주요 흐름, 컴포넌트와 인터페이스, 데이터 모델, 정확성 속성(Correctness Properties), 오류 처리, 테스트 전략, 보안, 배포를 한 문서로 설계. 열린 결정은 마지막 절에 모음 | 위 입력 문서와 재사용할 기존 자산 `provider-manager/`, `docker/`, `helm/`, `design-system/` | `.kiro/specs/open-attendee-webapp/design.md` (1399줄) |
+| 작업 계획 | Spec: tasks | 설계를 구현 작업 21개로 쪼갬. 0단계 1~14번, 1단계 15~21번. 공통 약속(라우터 자동 등록, 작업 핸들러 데코레이터, 테스트용 가짜 공급자) 명시 | `design.md`, `requirements.md`, `AGENTS.md` | `.kiro/specs/open-attendee-webapp/tasks.md` (498줄) |
+| 구현 | Kiro IDE 에이전트 세션 (작업 실행) | 작업 번호별로 구현하고 커밋. 뼈대·설정·DB, 로그인·CSRF, 세션과 메모, 저장소, 녹음 동의 게이트, 사진 EXIF 제거까지 진행 | `tasks.md`의 작업 번호, `provider-manager/`(LLM 공급자 재사용) | `webapp/src/open_attendee/` |
+| 검증 | Spec의 정확성 속성 + 속성 기반 테스트 | 설계의 속성을 Hypothesis 테스트로 옮김 (예: 소유자 격리 Property 18, 동의 범위, EXIF 제거 Property 5) | `design.md`의 Correctness Properties | `webapp/src/tests/` |
+| 기록 | 작업 실행 이력 | 어떤 작업을 어느 세션에서 실행했는지 Kiro가 남김 | | `.kiro/specs/open-attendee-webapp/tasks.meta.json` |
+| 기타 | 작업 규칙(Steering 역할), 에이전트 스킬, Kiro Crew 멀티 에이전트 | Bot이 작업 전에 `AGENTS.md`를 읽고, 스킬 3개를 씀. Bot 5개가 역할을 나눠 병렬로 일함 | `AGENTS.md`, `.agents/skills/` | 아래 "Bot별 성격과 성과" |
+
+- 스펙 3개 파일과 구현 커밋은 `crew/webapp/open-attendee` 브랜치(워크트리 `.worktrees/webapp/`)에 있어요. `main`에는 아직 없어요. 스펙 커밋은 `44f7bc6` "웹앱 요구사항, 설계, 작업 목록 추가"예요. 제출 전 병합 여부를 확인해야 해요.
+- `main`의 `.kiro/specs/open-attendee-webapp/`에는 `tasks.meta.json`만 있어요.
+- 작업 목록의 체크박스는 아직 대부분 비어 있어요. 구현 커밋 기준으로 진행 상황을 봐 주세요.
+- 중간 개발 스크린샷과 기능별 증거는 [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md)에 있어요.
+
+### 가드레일 (Kiro의 보안 규칙)
+
+Kiro는 보안 회색지대를 규칙으로 막아 두었고, 개발자가 우회하라고 해도 따르지 않았어요. 개발자는 이 규칙에 맞춰 설계를 바꿨어요.
+
+| 막힌 일 | Kiro의 반응 | 개발자가 바꾼 설계 |
+|---|---|---|
+| GPG 서명 우회 (서명 키를 쓸 수 없을 때) | 설정을 바꾸거나 서명을 끄지 않고 멈춰서 물음 | Bot 커밋은 서명 없이 만들고, PR로만 올려요. 사람이 검토하고 병합해요. 이유는 `AGENTS.md`에 있어요 |
+| `main`에 직접 push | 막힘 | 기능 브랜치와 PR만 써요 |
+| 샌드박스나 실행 도구가 막은 명령 (`docker run -d` 등) | 우회하지 않고 사람이 직접 돌릴 명령을 남김 | 막힌 일은 사람이 실행해요 |
+| 시크릿 파일 읽기 | 읽지 않음 (`.env`, Codex 로그인 파일) | 키는 `.env`에만 두고 `.gitignore`로 막아요 |
+
+규칙이 개발 속도를 늦추기도 했지만, 우회 대신 사람의 승인으로 풀었어요. 막힌 사례는 아래 "어려웠던 점과 해결 방법"에 있어요.
+
+### Bot별 성격과 성과
+
+Kiro Crew에서 Bot 5개가 역할을 나눠 일했어요. 모두 사람이 검토하고 병합했고, `main`에 직접 push하지 않았어요.
+
+| Bot | 성격 | 성과 | 결과물 |
 |---|---|---|---|
-| 기획 | <!-- 예: Spec (requirements) --> | <!-- 예: 사용자 스토리 4개와 인수 조건 작성 --> | <!-- 예: .kiro/specs/xxx/requirements.md --> |
-| 설계 | | | |
-| 구현 | | | |
-| 검증 | | | |
-| 기타 | <!-- Steering, Hooks, MCP 등 --> | | |
+| 정책이 (Claude Code) | 규칙을 꼼꼼히 읽고 근거를 붙이는 문서 담당. 확인 못 한 점은 빈칸으로 둠 | 평가 기준, 거버넌스, 보안 유의사항, 제출 전 체크리스트를 한 문서로 정리. 서울 행사 기준으로 거버넌스 4항목만 남김 | `docs/EVALUATION_GOVERNANCE_SECURITY.md` |
+| 문서기 | 정리와 기록에 강한 문서 담당. 막히면 사실대로 보고함 | slidev 발표 초안(섹션 7개, 빌드 성공), 스킬 2개 가져오기, 커밋 10개와 PR #1, `AGENTS.md` 규칙 작성 | `slidev/`, `AGENTS.md`, `.agents/skills/` |
+| AI마니아 | 모델 공급자 관리자. 키와 약관 위험을 신중히 따짐 | Strands SDK로 Bedrock·OpenAI·Codex를 공급자 설정만으로 전환. OpenAI와 Codex 실제 호출 성공, 시험 21개 통과 | `provider-manager/` |
+| 디자이니 | 디자인 담당. 근거 없는 추측은 적어 둠 | 디자인 토큰과 규칙, 스토리보드, Cloudscape 토큰 571개 변환, 디자인 스킬. PR #2 병합 | `design-system/`, `docs/references/cloudscape/`, `.agents/skills/kirothon-design-system/` |
+| 배포기 | 배포 담당. 막힌 도구는 우회하지 않고 명령을 남김 | Helm 차트(Deployment, Service, Ingress)와 Dockerfile 작성. `helm lint`, `docker build` 성공 | `docker/`, `helm/` |
+
+웹앱 스펙 자체는 Kiro IDE 에이전트 세션이 만들었고, 위 Bot들의 `provider-manager/`, `docker/`, `helm/`, `design-system/`을 설계가 재사용해요.
 
 ## AI 에이전트 역할과 성과
 
@@ -39,6 +77,8 @@
 | 배포기 (Kiro Crew) | 배포 담당. `docker/`와 `helm/` 담당 | 개인 클러스터 `jyje/cluster`와 `jyje/pifanctl` 구조를 참고해 간단한 Helm 차트 작성 (Deployment, Service, Ingress). 앱 코드가 아직 없어서 임시 nginx 이미지를 씀 | `helm/` |
 | 배포기 (Kiro Crew) | 배포 담당 | 임시 Dockerfile과 안내 페이지 작성. 이미지 `kirothon:0.1.0`을 로컬에서 빌드함 | `docker/Dockerfile`, `docker/html/index.html` |
 | 배포기 (Kiro Crew) | 배포 담당 | 임시 폴더에서 팀 저장소로 두 폴더를 옮기고 `helm lint`를 다시 통과시킴. 저장소의 다른 변경은 건드리지 않음 | `docker/`, `helm/` |
+
+Kiro 활용 증거와 중간 개발 스크린샷은 [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md)에 모아 두었어요.
 
 ### 배포기 현황 (갱신: 2026-11-14)
 
