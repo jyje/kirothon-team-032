@@ -1,10 +1,11 @@
 name: Build and push app image
 # 네이티브 amd64/arm64 러너가 플랫폼별 이미지를 digest로만 올리고, 마지막 job이
 # 불변 태그(r<실행번호>-<sha7>) 하나로 묶는다(jyje/mungchilog의 build.yml 방식).
-# PR과 수동 실행(main 아님)은 빌드만 검증하고 올리지 않는다.
+# 브랜치마다 이미지 이름이 다르다: main과 dev는 -dev, stg는 -stg, prd는 접미사 없음.
+# PR과 수동 실행(위 브랜치 아님)은 빌드만 검증하고 올리지 않는다.
 on:
   push:
-    branches: [main]
+    branches: [main, dev, stg, prd]
     paths:
       - "webapp/**"
       - "provider-manager/**"
@@ -26,8 +27,6 @@ on:
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
-env:
-  IMAGE: ghcr.io/${{ github.repository }}
 jobs:
   metadata:
     runs-on: ubuntu-24.04
@@ -36,6 +35,7 @@ jobs:
       commit_sha: ${{ steps.meta.outputs.commit_sha }}
       build_time: ${{ steps.meta.outputs.build_time }}
       publish: ${{ steps.meta.outputs.publish }}
+      image: ${{ steps.meta.outputs.image }}
     steps:
       - uses: actions/checkout@v4
       - name: Compute immutable image tag and build metadata
@@ -47,11 +47,16 @@ jobs:
             echo "image_tag=r${GITHUB_RUN_NUMBER}-${short_sha}"
             echo "commit_sha=${short_sha}"
             echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            if [[ "$GITHUB_REF" == "refs/heads/main" && "$GITHUB_EVENT_NAME" != "pull_request" ]]; then
-              echo "publish=true"
-            else
-              echo "publish=false"
-            fi
+            base="ghcr.io/${GITHUB_REPOSITORY_OWNER}/open-attendee"
+            case "$GITHUB_REF" in
+              refs/heads/main|refs/heads/dev) image="${base}-dev"; publish=true ;;
+              refs/heads/stg) image="${base}-stg"; publish=true ;;
+              refs/heads/prd) image="${base}"; publish=true ;;
+              *) image="${base}-dev"; publish=false ;;
+            esac
+            if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then publish=false; fi
+            echo "image=${image}"
+            echo "publish=${publish}"
           } >> "$GITHUB_OUTPUT"
   validate:
     needs: metadata
@@ -121,7 +126,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           # 플랫폼 이미지에는 태그를 붙이지 않는다. 두 이미지가 모두 올라온 뒤
           # finalize job이 배포용 태그를 하나만 만든다.
-          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ needs.metadata.outputs.image }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ matrix.cache_scope }}
           cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
           build-args: |
@@ -163,6 +168,7 @@ jobs:
           path: /tmp/digests
       - name: Publish multi-architecture image manifest
         env:
+          IMAGE: ${{ needs.metadata.outputs.image }}
           IMAGE_TAG: ${{ needs.metadata.outputs.image_tag }}
         run: |
           shopt -s nullglob
@@ -177,6 +183,7 @@ jobs:
           docker buildx imagetools create --tag "${IMAGE}:${IMAGE_TAG}" "${references[@]}"
       - name: Verify Linux amd64 and arm64 manifest variants
         env:
+          IMAGE: ${{ needs.metadata.outputs.image }}
           IMAGE_TAG: ${{ needs.metadata.outputs.image_tag }}
         run: |
           docker buildx imagetools inspect "${IMAGE}:${IMAGE_TAG}" --raw | jq -e '
@@ -187,6 +194,7 @@ jobs:
           '
       - name: Show how to deploy this image
         env:
+          IMAGE: ${{ needs.metadata.outputs.image }}
           IMAGE_TAG: ${{ needs.metadata.outputs.image_tag }}
         run: |
           {
