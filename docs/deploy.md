@@ -21,7 +21,7 @@
 
 ## 1. 이미지 (CI가 만들어요)
 
-`main`에 머지되면 GitHub Actions의 **Build and push app image**(`.github/workflows/build.yml`)가 amd64와 arm64 이미지를 네이티브 러너에서 각각 빌드하고, 하나의 멀티 아키텍처 태그로 묶어 `ghcr.io/jyje/kirothon-team-032`에 올려요. 방식은 `jyje/mungchilog`의 `build.yml`을 따랐어요.
+`main`에 머지되면 GitHub Actions의 **Build and push app image**(`.github/workflows/build.yml`)가 amd64와 arm64 이미지를 네이티브 러너에서 각각 빌드하고, 하나의 멀티 아키텍처 태그로 묶어 브랜치에 따라 `ghcr.io/jyje/open-attendee-dev`(main, dev), `-stg`(stg), `ghcr.io/jyje/open-attendee`(prd)에 올려요. 방식은 `jyje/mungchilog`의 `build.yml`을 따랐어요.
 
 - 태그는 **`r<실행번호>-<커밋 7자리>`** 처럼 바뀌지 않는 값이에요. `latest` 같은 움직이는 태그는 없어요.
 - 실행이 끝나면 **Actions → 해당 실행 → Summary**에 이 태그와 배포 명령이 나와요.
@@ -36,7 +36,7 @@
 docker compose up --build        # http://localhost:8080
 ```
 
-CI를 쓰지 않고 손으로 올려야 할 때는 `docker buildx build --platform linux/arm64 -f docker/Dockerfile -t ghcr.io/jyje/kirothon-team-032:<태그> --push .`를 써요. 이때 GHCR는 fine-grained 토큰을 받지 않아서 `write:packages`만 준 classic 토큰이 필요해요.
+CI를 쓰지 않고 손으로 올려야 할 때는 `docker buildx build --platform linux/arm64 -f docker/Dockerfile -t ghcr.io/jyje/open-attendee-dev:<태그> --push .`를 써요. 이때 GHCR는 fine-grained 토큰을 받지 않아서 `write:packages`만 준 classic 토큰이 필요해요.
 
 ## 2. Secret 만들기 (한 번만)
 
@@ -61,6 +61,7 @@ AI 요약용 키는 나중에 `kubectl ... patch secret` 또는 `kubectl ... cre
 ```bash
 helm upgrade --install open-attendee ./helm \
   --kube-context microk8s -n open-attendee \
+  --set image.repository=ghcr.io/jyje/open-attendee-dev \
   --set image.tag=<CI가 만든 태그, 예: r12-abc1234>
 
 kubectl --context microk8s -n open-attendee rollout status deploy/open-attendee
