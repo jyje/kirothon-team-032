@@ -5,7 +5,7 @@ description = "Credentials and inference config for AWS Bedrock, OpenAI and Open
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "boto3>=1.40.0",
-    "openai>=1.60.0",
+    "strands-agents[openai]>=1.0.0",
     "python-dotenv>=1.0.0",
 ]
 
