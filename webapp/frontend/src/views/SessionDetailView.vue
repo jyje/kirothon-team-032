@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError } from '@/api'
+import AssetsPanel from '@/components/AssetsPanel.vue'
 import type { Block, SessionDetail } from '@/types'
 
 type Row = Block & { state: 'saved' | 'dirty' | 'saving' | 'error'; message: string }
@@ -16,6 +17,7 @@ const rows = ref<Row[]>([])
 const loading = ref(true)
 const notice = ref('')
 const timers = new Map<string, number>()
+const assetsPanel = ref<InstanceType<typeof AssetsPanel> | null>(null)
 
 function toRow(b: Block): Row {
   return { ...b, state: 'saved', message: `저장됨 · 수정 ${b.revision}번째` }
@@ -62,6 +64,7 @@ async function save(row: Row) {
       json: { text: row.text, position: rows.value.indexOf(row) },
     })
     row.revision = saved.revision
+    void assetsPanel.value?.reload()
     row.state = 'saved'
     row.message = `저장됨 · 수정 ${saved.revision}번째`
   } catch (e) {
@@ -140,6 +143,8 @@ onBeforeUnmount(() => timers.forEach((t) => window.clearTimeout(t)))
         </li>
       </ol>
       <button class="btn btn-primary" type="button" @click="addBlock">+ 메모 추가</button>
+
+      <AssetsPanel ref="assetsPanel" :session-id="id" :blocks="rows" />
     </template>
   </section>
 </template>
