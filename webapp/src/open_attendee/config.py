@@ -14,6 +14,7 @@ from pathlib import Path
 REQUIRED_VARS = ("OWNER_PASSWORD_HASH", "SESSION_SECRET")
 BLOB_BACKENDS = ("local", "s3")
 TRANSCRIBERS = ("none", "fake", "faster_whisper", "remote")
+JOURNAL_MODES = ("wal", "delete")
 
 _TRUE = {"1", "true", "yes", "on"}
 _FALSE = {"0", "false", "no", "off", ""}
@@ -70,6 +71,7 @@ class Settings:
     transcriber: str = "none"
     stt_model: str = "small"
     provider: str | None = None
+    sqlite_journal_mode: str = "wal"  # NFS 볼륨에서는 "delete"
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
@@ -104,6 +106,9 @@ class Settings:
         if transcriber not in TRANSCRIBERS:
             invalid.append("TRANSCRIBER")
 
+        journal_mode = (get("SQLITE_JOURNAL_MODE", "wal") or "wal").lower()
+        if journal_mode not in JOURNAL_MODES:
+            invalid.append("SQLITE_JOURNAL_MODE")
         recording_raw = (environ.get("FEATURE_RECORDING") or "").strip().lower()
         if recording_raw in _TRUE:
             feature_recording = True
@@ -127,6 +132,7 @@ class Settings:
             transcriber=transcriber,
             stt_model=get("STT_MODEL", "small") or "small",
             provider=provider.lower() if provider else None,
+            sqlite_journal_mode=journal_mode,
         )
 
     @property

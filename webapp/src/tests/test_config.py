@@ -96,3 +96,15 @@ def test_secret_equality_and_truthiness() -> None:
     assert Secret("a") == Secret("a")
     assert Secret("a") != Secret("b")
     assert not Secret("")
+
+
+def test_sqlite_journal_mode_defaults_to_wal_and_validates(env: dict[str, str]) -> None:
+    from open_attendee.config import ConfigError
+
+    assert Settings.from_env(env).sqlite_journal_mode == "wal"
+    assert (
+        Settings.from_env({**env, "SQLITE_JOURNAL_MODE": "DELETE"}).sqlite_journal_mode == "delete"
+    )
+    with pytest.raises(ConfigError) as err:
+        Settings.from_env({**env, "SQLITE_JOURNAL_MODE": "memory"})
+    assert "SQLITE_JOURNAL_MODE" in str(err.value)

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta, timezone
 
+import pytest
 from sqlalchemy import Engine, inspect, text
 from sqlmodel import Session, SQLModel
 
 from open_attendee import models
+from open_attendee.db import make_engine
 from open_attendee.models import (
     Asset,
     AssetKind,
@@ -126,3 +128,17 @@ def test_event_session_defaults(engine: Engine) -> None:
         assert s.retain_audio is False
         assert len(s.id) == 32
         assert s.created_at.tzinfo is UTC
+
+
+def test_delete_journal_mode_for_network_volumes(tmp_path) -> None:
+    from sqlalchemy import text
+
+    engine = make_engine(tmp_path / "x.sqlite3", journal_mode="delete")
+    with engine.connect() as conn:
+        assert conn.execute(text("PRAGMA journal_mode")).scalar() == "delete"
+    engine.dispose()
+
+
+def test_unknown_journal_mode_is_rejected(tmp_path) -> None:
+    with pytest.raises(ValueError):
+        make_engine(tmp_path / "y.sqlite3", journal_mode="memory")

@@ -113,7 +113,7 @@ def create_app(
         if settings.blob_backend != "local":
             # S3 저장소는 1단계(20.1)에서 만든다. 몰래 로컬에 쓰지 않도록 시작을 거부한다.
             raise RuntimeError("BLOB_BACKEND=s3는 아직 지원하지 않아요")
-        engine = make_engine(settings.db_path)
+        engine = make_engine(settings.db_path, settings.sqlite_journal_mode)
         init_db(engine)
         app.state.engine = engine
         app.state.blobs = LocalBlobStore(settings.data_dir / "blobs")
