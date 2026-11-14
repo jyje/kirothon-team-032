@@ -57,3 +57,7 @@ resources:
     memory: 192Mi
   limits:
     memory: 512Mi
+
+# 차트 밖의 리소스(SealedSecret, ImageUpdater 등)를 Argo CD 앱 하나로 함께 배포한다.
+# jyje/mungchilog 차트와 같은 방식이다. 각 항목은 템플릿 문자열이거나 YAML 객체다.
+extraResources: []

@@ -35,3 +35,36 @@ export type AssetList = {
   limits: Record<string, number>
   recording_enabled: boolean
 }
+
+export type SummarySource = { kind: string; locator: string; target_id: string }
+export type SummaryBullet = { text: string; sources: SummarySource[] }
+export type Summary = { id: string; created_at: string; bullets: SummaryBullet[] }
+export type SummaryResponse = {
+  summary: Summary | null
+  llm_configured: boolean
+  dropped_bullets?: number
+  truncated?: boolean
+}
+
+export type DraftSentence = {
+  id: string
+  text: string
+  origin: 'ai' | 'ai_edited' | 'user_insight'
+  verify_status: 'verified' | 'unverified' | 'kept_as_opinion' | 'n/a'
+  verify_note: string | null
+  sources: { kind: string; locator: string }[]
+}
+export type DraftSection = {
+  id: string
+  title: string
+  insight_slot: boolean
+  sentences: DraftSentence[]
+}
+export type Draft = {
+  id: string
+  status: 'generating' | 'in_review' | 'approved' | 'failed'
+  approved_at: string | null
+  unverified_count: number
+  sections: DraftSection[]
+}
+export type DraftResponse = { draft: Draft | null; llm_configured: boolean }
