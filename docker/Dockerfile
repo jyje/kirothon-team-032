@@ -41,6 +41,16 @@ ENV PATH="/app/webapp/src/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     FRONTEND_DIST=/app/webapp/frontend/dist \
     DATA_DIR=/data
+# 이미지가 어느 커밋에서 왔는지 남긴다. 값이 매번 바뀌므로 무거운 층 뒤에 둔다.
+ARG SOURCE_URL=https://github.com/jyje/kirothon-team-032
+ARG IMAGE_TAG=dev
+ARG COMMIT_SHA=unknown
+ARG BUILD_TIME=unknown
+LABEL org.opencontainers.image.title="open-attendee" \
+      org.opencontainers.image.source="${SOURCE_URL}" \
+      org.opencontainers.image.version="${IMAGE_TAG}" \
+      org.opencontainers.image.revision="${COMMIT_SHA}" \
+      org.opencontainers.image.created="${BUILD_TIME}"
 USER 10001:10001
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \

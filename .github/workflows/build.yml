@@ -1,0 +1,201 @@
+name: Build and push app image
+# 네이티브 amd64/arm64 러너가 플랫폼별 이미지를 digest로만 올리고, 마지막 job이
+# 불변 태그(r<실행번호>-<sha7>) 하나로 묶는다(jyje/mungchilog의 build.yml 방식).
+# PR과 수동 실행(main 아님)은 빌드만 검증하고 올리지 않는다.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "webapp/**"
+      - "provider-manager/**"
+      - "design-system/**"
+      - "docker/**"
+      - ".dockerignore"
+      - ".github/workflows/build.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "webapp/**"
+      - "provider-manager/**"
+      - "design-system/**"
+      - "docker/**"
+      - ".dockerignore"
+      - ".github/workflows/build.yml"
+  workflow_dispatch: {}
+# 오래된 실행이 더 늦게 끝나 최신 이미지처럼 보이지 않도록 이전 실행을 취소한다.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+jobs:
+  metadata:
+    runs-on: ubuntu-24.04
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      commit_sha: ${{ steps.meta.outputs.commit_sha }}
+      build_time: ${{ steps.meta.outputs.build_time }}
+      publish: ${{ steps.meta.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compute immutable image tag and build metadata
+        id: meta
+        shell: bash
+        run: |
+          short_sha="$(git rev-parse --short=7 "$GITHUB_SHA")"
+          {
+            echo "image_tag=r${GITHUB_RUN_NUMBER}-${short_sha}"
+            echo "commit_sha=${short_sha}"
+            echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            if [[ "$GITHUB_REF" == "refs/heads/main" && "$GITHUB_EVENT_NAME" != "pull_request" ]]; then
+              echo "publish=true"
+            else
+              echo "publish=false"
+            fi
+          } >> "$GITHUB_OUTPUT"
+  validate:
+    needs: metadata
+    if: needs.metadata.outputs.publish != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+            cache_scope: open-attendee-linux-amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            cache_scope: open-attendee-linux-arm64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build platform image without publishing
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          cache-from: type=gha,scope=${{ matrix.cache_scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
+          build-args: |
+            IMAGE_TAG=${{ needs.metadata.outputs.image_tag }}
+            COMMIT_SHA=${{ needs.metadata.outputs.commit_sha }}
+            BUILD_TIME=${{ needs.metadata.outputs.build_time }}
+  build:
+    needs: metadata
+    if: needs.metadata.outputs.publish == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+            cache_scope: open-attendee-linux-amd64
+            artifact_suffix: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            cache_scope: open-attendee-linux-arm64
+            artifact_suffix: arm64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push platform image by digest
+        id: build_push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          # 플랫폼 이미지에는 태그를 붙이지 않는다. 두 이미지가 모두 올라온 뒤
+          # finalize job이 배포용 태그를 하나만 만든다.
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.cache_scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
+          build-args: |
+            IMAGE_TAG=${{ needs.metadata.outputs.image_tag }}
+            COMMIT_SHA=${{ needs.metadata.outputs.commit_sha }}
+            BUILD_TIME=${{ needs.metadata.outputs.build_time }}
+      - name: Export platform digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build_push.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      - name: Upload platform digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.artifact_suffix }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+  finalize:
+    needs: [metadata, build]
+    if: needs.metadata.outputs.publish == 'true'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download platform digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: digests-*
+          merge-multiple: true
+          path: /tmp/digests
+      - name: Publish multi-architecture image manifest
+        env:
+          IMAGE_TAG: ${{ needs.metadata.outputs.image_tag }}
+        run: |
+          shopt -s nullglob
+          digest_files=(/tmp/digests/*)
+          test "${#digest_files[@]}" -eq 2
+          references=()
+          for digest_file in "${digest_files[@]}"; do
+            digest="$(basename "$digest_file")"
+            [[ "$digest" =~ ^[a-f0-9]{64}$ ]]
+            references+=("${IMAGE}@sha256:${digest}")
+          done
+          docker buildx imagetools create --tag "${IMAGE}:${IMAGE_TAG}" "${references[@]}"
+      - name: Verify Linux amd64 and arm64 manifest variants
+        env:
+          IMAGE_TAG: ${{ needs.metadata.outputs.image_tag }}
+        run: |
+          docker buildx imagetools inspect "${IMAGE}:${IMAGE_TAG}" --raw | jq -e '
+            [.manifests[].platform
+             | select(.os == "linux")
+             | .architecture]
+            | sort == ["amd64", "arm64"]
+          '
+      - name: Show how to deploy this image
+        env:
+          IMAGE_TAG: ${{ needs.metadata.outputs.image_tag }}
+        run: |
+          {
+            echo "### 이미지 \`${IMAGE}:${IMAGE_TAG}\`"
+            echo
+            echo "배포 명령은 \`docs/deploy.md\` 3절을 따르고, 태그만 이 값으로 넘겨요."
+            echo
+            echo '```bash'
+            echo "helm upgrade --install open-attendee ./helm --kube-context microk8s -n open-attendee \\"
+            echo "  --set image.tag=${IMAGE_TAG}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

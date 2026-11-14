@@ -18,27 +18,24 @@
 - 로컬은 `webapp/.env`(커밋하지 않음)를 쓰고, 예시는 `webapp/.env.example`이에요.
 - 쿠키에 `Secure`가 붙어 있어서 로그인 유지는 `https://`나 `http://localhost`에서만 돼요.
 
-## 1. 이미지 만들기
+## 1. 이미지 (CI가 만들어요)
 
-저장소 루트에서 실행해요.
+`main`에 머지되면 GitHub Actions의 **Build and push app image**(`.github/workflows/build.yml`)가 amd64와 arm64 이미지를 네이티브 러너에서 각각 빌드하고, 하나의 멀티 아키텍처 태그로 묶어 `ghcr.io/jyje/kirothon-team-032`에 올려요. 방식은 `jyje/mungchilog`의 `build.yml`을 따랐어요.
+
+- 태그는 **`r<실행번호>-<커밋 7자리>`** 처럼 바뀌지 않는 값이에요. `latest` 같은 움직이는 태그는 없어요.
+- 실행이 끝나면 **Actions → 해당 실행 → Summary**에 이 태그와 배포 명령이 나와요.
+- PR에서는 빌드만 검증하고 올리지 않아요. `main` 푸시와 수동 실행(main 브랜치)만 올려요.
+- 인증은 워크플로의 `GITHUB_TOKEN`이라서 개인 토큰이 필요 없어요. 패키지는 저장소가 공개라서 공개로 만들어져요. 처음 올라온 뒤 패키지가 비공개로 보이면 GitHub의 Package settings에서 Public으로 바꿔요.
+- 테스트는 `ci.yml`(ruff, pytest, vue-tsc, helm lint)이 PR과 `main`에서 돌아요.
+
+로컬에서 먼저 확인하고 싶을 때만 아래를 써요.
 
 ```bash
 # 로컬 확인 (compose). 먼저 webapp/.env를 만들어요: cp webapp/.env.example webapp/.env
 docker compose up --build        # http://localhost:8080
-
-# 클러스터용 arm64 이미지를 레지스트리에 올려요 (ghcr.io 예시)
-# GHCR는 fine-grained 토큰을 지원하지 않아요. classic 토큰에 write:packages 하나만 주세요(만료 7일 권장).
-# 토큰은 화면과 셸 기록에 남지 않게 표준입력으로만 넘겨요. 예: .env의 GHCR_TOKEN
-printf '%s' "$(grep -m1 '^GHCR_TOKEN=' .env | cut -d= -f2-)" | docker login ghcr.io -u jyje --password-stdin
-docker buildx build --platform linux/arm64 -f docker/Dockerfile \
-  -t ghcr.io/jyje/open-attendee:0.1.1 --push .
-# 이미 arm64 머신에서 빌드한 이미지가 있으면 태그만 붙여서 올려도 돼요:
-#   docker tag open-attendee:dev ghcr.io/jyje/open-attendee:0.1.1 && docker push ghcr.io/jyje/open-attendee:0.1.1
 ```
 
-처음 올린 패키지는 비공개예요. 클러스터가 pull secret 없이 받으려면 GitHub의 패키지 설정(Package settings → Danger Zone → Change visibility)에서 **Public**으로 바꿔요. 이 이미지에는 비밀이 들어 있지 않아요(`.dockerignore`가 `.env`를 막아요).
-
-비공개로 두려면 `read:packages` 토큰으로 pull secret을 만들고 `--set imagePullSecrets[0].name=ghcr-pull`로 넘겨요.
+CI를 쓰지 않고 손으로 올려야 할 때는 `docker buildx build --platform linux/arm64 -f docker/Dockerfile -t ghcr.io/jyje/kirothon-team-032:<태그> --push .`를 써요. 이때 GHCR는 fine-grained 토큰을 받지 않아서 `write:packages`만 준 classic 토큰이 필요해요.
 
 ## 2. Secret 만들기 (한 번만)
 
@@ -63,7 +60,7 @@ AI 요약용 키는 나중에 `kubectl ... patch secret` 또는 `kubectl ... cre
 ```bash
 helm upgrade --install open-attendee ./helm \
   --kube-context microk8s -n open-attendee \
-  --set image.tag=0.1.1
+  --set image.tag=<CI가 만든 태그, 예: r12-abc1234>
 
 kubectl --context microk8s -n open-attendee rollout status deploy/open-attendee
 kubectl --context microk8s -n open-attendee port-forward svc/open-attendee 8080:80   # http://localhost:8080
@@ -73,7 +70,7 @@ kubectl --context microk8s -n open-attendee port-forward svc/open-attendee 8080:
 
 ```bash
 helm upgrade --install open-attendee ./helm --kube-context microk8s -n open-attendee \
-  --set image.tag=0.1.1 --set ingress.enabled=true --set ingress.host=<도메인>
+  --set image.tag=<태그> --set ingress.enabled=true --set ingress.host=<도메인>
 ```
 
 ## 4. 확인과 되돌리기
