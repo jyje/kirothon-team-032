@@ -14,6 +14,8 @@
 
 **Demo:** 배포 주소는 클러스터 배포를 마친 뒤 채웁니다. 컨테이너 이미지는 `ghcr.io/jyje/open-attendee-dev:r6-e6696b2`처럼 공개되어 있으며(최신 태그는 Actions 요약에 나옵니다), 아래 6절의 명령으로 직접 실행해 볼 수 있습니다.
 
+**발표자료:** [`PRESENTATION.pdf`](PRESENTATION.pdf) (12쪽)
+
 > **지금 구현 단계:** 기록(필기, 사진, 자료 첨부, 녹음 동의 게이트)부터 AI 요약, 출처가 붙은 초안, 검토와 승인, 마크다운 내보내기까지 동작합니다. 녹음과 전사, 템플릿 선택·저장, 얼굴 흐림 등은 구현 전입니다. 기능별 상태는 2절 표에 있습니다.
 
 ---
@@ -86,7 +88,13 @@ FastAPI 서버 ─ SQLite (SQLModel) ─ 파일 저장소 (로컬 볼륨, S3는 
 
 ## 4. 기대 효과
 
-- 정리 시간: 2~3시간 → 30분 이내 (목표치입니다. 아직 측정하지 않았습니다.)
+- **서비스 10개 이상 → 1개**: 필기, 사진, PDF, 요약, 내보내기를 한곳에서 합니다.
+- **새 구독료 없음**: 내 AWS, 내 서버, 내 AI 키를 씁니다. 사용료는 따로 듭니다.
+- **믿을 수 있는 요약**: 모든 문장에 출처가 붙고, 확인되지 않은 문장은 표시됩니다.
+- **개인정보 보호**: 사진 위치 정보는 지우고, 동의 없는 녹음은 처리하지 않습니다.
+- **어디서든 실행**: 이미지 하나로 맥북, AWS, 온프레미스에서 돕니다.
+
+목표(아직 측정하지 않았습니다): 정리 시간 2~3시간 → 30분 이내. 녹음과 전사가 꺼져 있어서, 지금은 필기, 사진, PDF만 기준입니다.
 
 ## 5. 차별점
 
@@ -191,6 +199,22 @@ helm lint helm --set image.tag=test
 - 배포 가이드: [`docs/deploy.md`](docs/deploy.md)
 - Kiro를 어떻게 썼는지: [`BUILD_REPORT.md`](BUILD_REPORT.md), [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md)
 - 평가, 거버넌스, 보안 유의사항: [`docs/EVALUATION_GOVERNANCE_SECURITY.md`](docs/EVALUATION_GOVERNANCE_SECURITY.md)
+- 발표자료: [`PRESENTATION.pdf`](PRESENTATION.pdf). 원본은 [`slidev/slides.md`](slidev/slides.md)이고, 글꼴은 Pretendard(한글)와 Rubik(영문 제목, 디자인 시스템)을 npm으로 묶어 PDF에 넣었습니다.
+
+  ```bash
+  cd slidev
+  npm ci
+  npm i --no-save playwright-chromium    # PDF 내보내기에 필요합니다
+  npx slidev export --output ../PRESENTATION.pdf --wait 3000
+  ```
+
+## 출처와 라이선스
+
+- 이 저장소의 코드는 [MIT](LICENSE)입니다. 화면, 서버, 배포 설정은 이 해커톤에서 새로 작성했습니다.
+- **디자인**: [kirothon-timer.vercel.app](https://kirothon-timer.vercel.app/)에서 추출한 토큰([`design-system/`](design-system))과, AWS의 오픈소스 [Cloudscape](https://cloudscape.design/) 디자인 토큰 참고 자료(Apache-2.0, [`docs/references/cloudscape/`](docs/references/cloudscape)에 라이선스와 출처 포함).
+- **글꼴**: `@fontsource`로 내려받는 Rubik(OFL-1.1), Rubik Mono One, Permanent Marker(Apache-2.0).
+- **주요 라이브러리**: Vue, Vite, FastAPI, SQLModel, Pillow, pypdf, Strands Agents 등. 각 라이선스는 해당 패키지를 따릅니다.
+- **CI 이미지 빌드 방식**은 작성자 본인의 저장소 [`jyje/mungchilog`](https://github.com/jyje/mungchilog)의 `build.yml` 구성을 참고했습니다.
 
 ## 디자인 시스템
 
