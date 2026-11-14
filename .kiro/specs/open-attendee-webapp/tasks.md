@@ -118,7 +118,7 @@
     - 임의의 크기와 GPS를 포함한 EXIF를 가진 이미지를 만들어 `sanitize` 결과를 다시 열었을 때 EXIF가 비어 있는지, `Asset` 모델에 위치 정보 열이 없는지 확인한다.
     - **Validates: Requirements 3.3, 3.4**
 
-  - [ ] 5.5 `processors/docs.py`: `DocExtractor`
+  - [x] 5.5 `processors/docs.py`: `DocExtractor`
     - PDF는 쪽 단위(1부터)로, TXT와 MD는 한 덩어리로 텍스트를 뽑아 `MAX_CHUNK_CHARS` 이하의 `DocChunk`(조각 번호 `part`는 0부터)로 나눈다.
     - 텍스트가 비어 있으면 "텍스트 없음" 상태를 돌려주고, 암호가 걸린 PDF는 예외로 알린다.
     - `supports(mime, kind)` 함수를 두어 0단계는 슬라이드로 PDF만 허용한다(PPTX는 1단계에서 이 함수만 바꿔 연다).
