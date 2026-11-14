@@ -43,6 +43,9 @@ LOGIN_REDIRECT = "/sessions"
 LOGIN_LIMIT = 5  # 1분 안에 허용하는 로그인 시도 수
 LOGIN_WINDOW_SECONDS = 60.0
 
+# SPA가 로그인 전에 부르는 API. 로그인 화면(SPA의 `/login`)과 빌드된 파일(`/assets/`)도 연다.
+PUBLIC_PATHS = frozenset({LOGIN_PATH, "/healthz", "/api/csrf", "/api/login"})
+
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 # 폼 토큰을 읽으려고 본문을 메모리에 올리는 한도. 이보다 크면 헤더 토큰만 인정한다.
 MAX_FORM_BODY_BYTES = 64 * 1024
@@ -50,7 +53,7 @@ MAX_FORM_BODY_BYTES = 64 * 1024
 
 def is_public_path(path: str) -> bool:
     """로그인 없이 열어 두는 경로. 로그인 화면이 쓰는 정적 파일은 시크릿이 아니라서 함께 연다."""
-    return path in (LOGIN_PATH, "/healthz") or path.startswith("/static/")
+    return path in PUBLIC_PATHS or path.startswith(("/static/", "/assets/"))
 
 
 class LoginRateLimiter:
