@@ -42,7 +42,7 @@ ENV PATH="/app/webapp/src/.venv/bin:${PATH}" \
     FRONTEND_DIST=/app/webapp/frontend/dist \
     DATA_DIR=/data
 # 이미지가 어느 커밋에서 왔는지 남긴다. 값이 매번 바뀌므로 무거운 층 뒤에 둔다.
-ARG SOURCE_URL=https://github.com/jyje/kirothon-team-032
+ARG SOURCE_URL=https://github.com/jyje/open-attendee
 ARG IMAGE_TAG=dev
 ARG COMMIT_SHA=unknown
 ARG BUILD_TIME=unknown
