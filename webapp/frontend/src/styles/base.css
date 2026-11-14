@@ -24,7 +24,7 @@ body {
   display: grid;
   place-items: center;
   min-height: calc(100vh - var(--inset) * 2);
-  overflow: hidden;
+  overflow: clip; /* 둥근 모서리는 자르되 스크롤 컨테이너를 만들지 않아 sticky가 동작한다 */
 }
 
 :focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }

@@ -28,6 +28,8 @@ async function submit() {
     <p class="label">OPEN ATTENDEE</p>
     <h1>필기 도구에 로그인</h1>
     <p class="hint">무언갈 들으러 가는 당신을 위한 필기 도구</p>
+    <!-- 브라우저 비밀번호 관리자가 계정을 알아보도록 숨긴 사용자명 칸 -->
+    <input type="text" name="username" value="owner" autocomplete="username" hidden />
     <label class="field">
       <span>비밀번호</span>
       <input v-model="password" type="password" autocomplete="current-password" autofocus required />
