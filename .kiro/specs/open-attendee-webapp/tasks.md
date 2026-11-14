@@ -108,7 +108,7 @@
     - **Validates: Requirements 10.1, 10.2**
     - 임의의 자료 종류, `solo_voice`, 동의 기록 조합(다른 세션, 철회됨, 체크 누락)으로 `needs_consent`와 `require_consent`를 확인한다. 두 속성은 한 파일에 각각 별도 테스트 함수로 둔다.
 
-  - [ ] 5.3 `processors/photo.py`: `PhotoProcessor.sanitize`
+  - [x] 5.3 `processors/photo.py`: `PhotoProcessor.sanitize`
     - `DateTimeOriginal`만 읽고 모든 EXIF를 지운 이미지를 만든다. GPS는 읽지도 저장하지도 않는다.
     - EXIF 회전을 픽셀에 반영하고, HEIC는 JPEG로 변환하며, 긴 변 2048px 이하로 줄이고 긴 변 400px 축소판을 만든다. 깨진 파일은 예외로 알린다.
     - _Requirements: 3.3, 3.4, 3.5, 3.6, 3.7, 3.8_
