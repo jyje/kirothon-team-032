@@ -43,7 +43,7 @@ Kiro Crew에서 Bot 5개가 역할을 나눠 일했어요. 모두 사람이 검�
 
 | Bot | 성격 | 성과 | 결과물 |
 |---|---|---|---|
-| 정책이 (Claude Code) | 규칙을 꼼꼼히 읽고 근거를 붙이는 문서 담당. 확인 못 한 점은 빈칸으로 둠 | 평가 기준, 거버넌스, 보안 유의사항, 제출 전 체크리스트를 한 문서로 정리. 서울 행사 기준으로 거버넌스 4항목만 남김 | `docs/EVALUATION_GOVERNANCE_SECURITY.md` |
+| 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 규칙을 꼼꼼히 읽고 근거를 붙이는 문서 담당. 확인 못 한 점은 빈칸으로 둠 | 평가 기준, 거버넌스, 보안 유의사항, 제출 전 체크리스트를 한 문서로 정리. 서울 행사 기준으로 거버넌스 4항목만 남김 | `docs/EVALUATION_GOVERNANCE_SECURITY.md` |
 | 문서기 | 정리와 기록에 강한 문서 담당. 막히면 사실대로 보고함 | slidev 발표 초안(섹션 7개, 빌드 성공), 스킬 2개 가져오기, 커밋 10개와 PR #1, `AGENTS.md` 규칙 작성 | `slidev/`, `AGENTS.md`, `.agents/skills/` |
 | AI마니아 | 모델 공급자 관리자. 키와 약관 위험을 신중히 따짐 | Strands SDK로 Bedrock·OpenAI·Codex를 공급자 설정만으로 전환. OpenAI와 Codex 실제 호출 성공, 시험 21개 통과 | `provider-manager/` |
 | 디자이니 | 디자인 담당. 근거 없는 추측은 적어 둠 | 디자인 토큰과 규칙, 스토리보드, Cloudscape 토큰 571개 변환, 디자인 스킬. PR #2 병합 | `design-system/`, `docs/references/cloudscape/`, `.agents/skills/kirothon-design-system/` |
@@ -57,8 +57,8 @@ Kiro Crew에서 Bot 5개가 역할을 나눠 일했어요. 모두 사람이 검�
 
 | 에이전트 | 역할 | 한 일 | 결과물 위치 |
 |---|---|---|---|
-| Claude (Claude Code) | 문서 담당 | 평가, 거버넌스, 보안 유의사항, 제출 전 체크리스트 정리. 참고한 [Kirothon 규칙 페이지](https://awscommunity.pk/kirothon/#rules)는 파키스탄 행사 기준이라, 서울 AWS 주최 행사에는 거버넌스 4항목(원본 작업, 지식재산, 행동 강령, 실격)만 가져옴 | `docs/EVALUATION_GOVERNANCE_SECURITY.md` |
-| Claude (Claude Code) | 문서 담당 | 이 저장소의 `AGENTS.md`, `SUBMISSION_GUIDE.md`를 평가와 거버넌스의 기준으로 연결. 서울 주최측 점수표는 아직 못 구해서 빈칸으로 둠. 참여 확정 안내(AUSG x ASBG x AWSKRUG, AWS Korea, 2026.11.14)를 이름과 소속을 가리고 행사 정보로 추가. 공식 사이트([kirothon.ausg.me](https://kirothon.ausg.me))의 당일 타임테이블, 팀 구성(1~4인), 주제 당일 공개도 반영 | `docs/EVALUATION_GOVERNANCE_SECURITY.md` |
+| 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 문서 담당 | 평가, 거버넌스, 보안 유의사항, 제출 전 체크리스트 정리. 참고한 [Kirothon 규칙 페이지](https://awscommunity.pk/kirothon/#rules)는 파키스탄 행사 기준이라, 서울 AWS 주최 행사에는 거버넌스 4항목(원본 작업, 지식재산, 행동 강령, 실격)만 가져옴 | `docs/EVALUATION_GOVERNANCE_SECURITY.md` |
+| 정책이 (Kiro Crew, 백엔드 Claude Code CLI) | 문서 담당 | 이 저장소의 `AGENTS.md`, `SUBMISSION_GUIDE.md`를 평가와 거버넌스의 기준으로 연결. 서울 주최측 점수표는 아직 못 구해서 빈칸으로 둠. 참여 확정 안내(AUSG x ASBG x AWSKRUG, AWS Korea, 2026.11.14)를 이름과 소속을 가리고 행사 정보로 추가. 공식 사이트([kirothon.ausg.me](https://kirothon.ausg.me))의 당일 타임테이블, 팀 구성(1~4인), 주제 당일 공개도 반영 | `docs/EVALUATION_GOVERNANCE_SECURITY.md` |
 | AI마니아 (Kiro Crew) | 프로바이더 관리자. Bedrock, Codex, OpenAI 키와 추론 환경 담당 | [template-pilot-ai-python](https://github.com/jyje/template-pilot-ai-python)을 참고해 초기 구성. Bedrock API 키(`AWS_BEARER_TOKEN_BEDROCK`)와 OpenAI API 키 지원 | `provider-manager/` |
 | AI마니아 (Kiro Crew) | 프로바이더 관리자 | 공급자 시험 코드 작성. Bedrock 시험 6개 추가 (가짜 응답 사용) | `provider-manager/src/tests/test_providers.py` |
 | AI마니아 (Kiro Crew) | 프로바이더 관리자 | LangChain 대신 Strands SDK로 전환. `PROVIDER`(`bedrock`, `openai`, `codex`)만 바꾸면 같은 에이전트 코드로 동작. `.env.example`에 공급자별 환경변수 정리 | `provider-manager/src/provider_manager/factory.py`, `.env.example` |
@@ -73,6 +73,8 @@ Kiro Crew에서 Bot 5개가 역할을 나눠 일했어요. 모두 사람이 검�
 | 문서기 (Kiro Crew) | 문서 담당 | `jyje/skills`에서 `centered-readme`와 `git-commit-helper` 스킬을 가져옴 (원본과 바이트 단위로 같음) | `.agents/skills/` |
 | 문서기 (Kiro Crew) | 문서 담당 | 변경점을 10개 묶음으로 나눠 커밋 메시지를 제안하고, 승인받아 서명 없이 커밋 10개 작성 | [PR #1](https://github.com/jyje/kirothon-team-032/pull/1) |
 | 문서기 (Kiro Crew) | 문서 담당 | `AGENTS.md`에 Bot별 PR 표시, 한글 커밋 허용, 서명 없는 커밋과 PR로만 올리는 규칙 작성. `git-commit-helper`의 스킬 문서와 검증 스크립트가 한글 제목을 받도록 고치고 테스트 6개 통과 | `AGENTS.md`, `.agents/skills/git-commit-helper/` |
+
+> 정정: 정책이는 Claude Code를 직접 쓴 것이 아니에요. Kiro Crew의 Bot이고, Kiro Crew의 실험 기능으로 백엔드(하네스)만 Claude Code CLI로 바꿨어요. 팀 단위로는 Kiro Crew가 중심이고, 하위 작업 일부를 Claude Code 백엔드의 Bot이 맡았어요. 모델은 Kiro와 Claude Code 모두 Sonnet 5.5예요.
 
 | 배포기 (Kiro Crew) | 배포 담당. `docker/`와 `helm/` 담당 | 개인 클러스터 `jyje/cluster`와 `jyje/pifanctl` 구조를 참고해 간단한 Helm 차트 작성 (Deployment, Service, Ingress). 앱 코드가 아직 없어서 임시 nginx 이미지를 씀 | `helm/` |
 | 배포기 (Kiro Crew) | 배포 담당 | 임시 Dockerfile과 안내 페이지 작성. 이미지 `kirothon:0.1.0`을 로컬에서 빌드함 | `docker/Dockerfile`, `docker/html/index.html` |
