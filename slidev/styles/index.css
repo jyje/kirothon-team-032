@@ -1,0 +1,44 @@
+/* Colours copied from design-system/tokens.css (KIROTHON 2026). Keep in sync by hand. */
+:root {
+  --color-ink: #0b0b0b;
+  --color-purple: #5038a0;
+  --color-kiro: #9046ff;
+  --color-lilac: #b79be0;
+  --color-lavender: #dcc6ee;
+}
+
+.slidev-layout {
+  background: var(--color-purple);
+  color: #ffffff;
+  font-family: system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+
+.slidev-layout h1,
+.slidev-layout h2 {
+  color: var(--color-lavender);
+}
+
+.slidev-layout a {
+  color: var(--color-lilac);
+}
+
+.slidev-layout table {
+  color: var(--color-ink);
+  background: #ffffff;
+  border: 3px solid var(--color-ink);
+}
+
+.slidev-layout th {
+  background: var(--color-lavender);
+}
+
+.slidev-layout code {
+  color: var(--color-lavender);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slidev-layout * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
