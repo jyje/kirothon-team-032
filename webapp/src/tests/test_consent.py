@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from datetime import date
 
 import pytest
@@ -141,10 +140,9 @@ def test_require_consent_rejects_missing_revoked_and_foreign_records(
 
 # --------------------------------------------------------------------------- 라우트
 def _session_id(client: TestClient) -> str:
-    res = client.post("/sessions", data={"title": "행사"}, follow_redirects=False)
-    match = re.fullmatch(r"/sessions/([0-9a-f]{32})", res.headers["location"])
-    assert match
-    return match.group(1)
+    res = client.post("/api/sessions", json={"title": "행사"})
+    assert res.status_code == 201
+    return res.json()["id"]
 
 
 def test_create_and_revoke_consent_over_http(auth_client: TestClient) -> None:

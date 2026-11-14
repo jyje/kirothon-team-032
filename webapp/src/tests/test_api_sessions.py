@@ -69,3 +69,8 @@ def test_block_over_limit_is_422(api: TestClient) -> None:
 def test_write_without_csrf_header_is_403(api: TestClient) -> None:
     del api.headers["X-CSRF-Token"]
     assert api.post("/api/sessions", json={"title": "x"}).status_code == 403
+
+
+def test_block_with_non_uuid_id_is_422(api: TestClient) -> None:
+    sid = _create(api)
+    assert api.put(f"/api/sessions/{sid}/blocks/not-a-uuid", json={"text": "x"}).status_code == 422

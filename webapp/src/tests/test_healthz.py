@@ -12,7 +12,7 @@ from open_attendee.config import Settings
 from open_attendee.logging_redact import Sensitive
 from open_attendee.main import ProviderInfo, create_app, discover_routers
 
-from .conftest import BASE_URL, OWNER_HASH, SESSION_SECRET, login
+from .conftest import BASE_URL, OWNER_HASH, SESSION_SECRET, include_first, login
 
 API_KEY = "sk-live-0123456789abcdef"
 
@@ -57,7 +57,9 @@ def test_healthz_is_503_when_database_is_unavailable(settings: Settings) -> None
 
 def test_docs_endpoints_are_off(auth_client: TestClient) -> None:
     for path in ("/docs", "/redoc", "/openapi.json"):
-        assert auth_client.get(path).status_code == 404
+        body = auth_client.get(path).text.lower()
+        assert "swagger" not in body
+        assert "openapi" not in body
 
 
 def test_database_file_is_created_in_data_dir(client: TestClient, settings: Settings) -> None:
@@ -77,7 +79,7 @@ def test_validation_error_does_not_echo_input(settings: Settings) -> None:
     def echo(count: int) -> dict[str, int]:
         return {"count": count}
 
-    app.include_router(router)
+    include_first(app, router)
     with TestClient(app, base_url=BASE_URL) as client:
         token = login(client)
         res = client.post(
@@ -95,7 +97,7 @@ def test_unhandled_error_hides_message(settings: Settings) -> None:
     def boom() -> None:
         raise RuntimeError(f"프롬프트 원문 {API_KEY}")
 
-    app.include_router(router)
+    include_first(app, router)
     with TestClient(app, base_url=BASE_URL, raise_server_exceptions=False) as client:
         login(client)
         res = client.get("/boom-test")

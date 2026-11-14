@@ -6,7 +6,6 @@ LLM 제공자는 `provider_factory`로 주입한다.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -28,18 +27,13 @@ OWNER_HASH = PasswordHasher(time_cost=1, memory_cost=8, parallelism=1).hash(OWNE
 SESSION_SECRET = "test-session-secret-value"
 # 세션 쿠키가 `Secure`라서 테스트 클라이언트도 https 주소를 쓴다.
 BASE_URL = "https://testserver"
-_TOKEN_RE = re.compile(r'name="csrf_token" value="([^"]+)"')
 
 
 def login(client: TestClient, password: str = OWNER_PASSWORD) -> str:
-    """로그인하고 이후 요청에 쓸 CSRF 토큰을 돌려준다."""
-    page = client.get("/login")
-    match = _TOKEN_RE.search(page.text)
-    assert match, "로그인 화면에 CSRF 토큰이 없다"
-    res = client.post(
-        "/login", data={"password": password, "csrf_token": match.group(1)}, follow_redirects=False
-    )
-    assert res.status_code == 303, res.text
+    """JSON API로 로그인하고 이후 요청에 쓸 CSRF 토큰을 돌려준다."""
+    seed = client.get("/api/csrf").json()["csrf_token"]
+    res = client.post("/api/login", json={"password": password}, headers={"X-CSRF-Token": seed})
+    assert res.status_code == 200, res.text
     return csrf_token(client)
 
 
@@ -104,3 +98,12 @@ def db(engine: Engine) -> Iterator[Session]:
 @pytest.fixture
 def sessions(db: Session, blobs: LocalBlobStore) -> SessionService:
     return SessionService(db, blobs)
+
+
+def include_first(app, router) -> None:
+    """테스트용 라우터를 SPA catch-all보다 앞에 둔다(catch-all은 앱을 만들 때 맨 끝에 붙는다)."""
+    before = len(app.router.routes)
+    app.include_router(router)
+    added = app.router.routes[before:]
+    del app.router.routes[before:]
+    app.router.routes[:0] = added

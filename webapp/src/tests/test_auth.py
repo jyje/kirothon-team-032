@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 import pytest
 from fastapi import APIRouter
 from fastapi.testclient import TestClient
@@ -16,22 +14,16 @@ from open_attendee.auth import (
 from open_attendee.config import Settings
 from open_attendee.main import create_app
 
-from .conftest import BASE_URL, OWNER_HASH, OWNER_PASSWORD, SESSION_SECRET, login
-
-_TOKEN_RE = re.compile(r'name="csrf_token" value="([^"]+)"')
+from .conftest import BASE_URL, OWNER_HASH, OWNER_PASSWORD, SESSION_SECRET, include_first, login
 
 
 def _login_token(client: TestClient) -> str:
-    match = _TOKEN_RE.search(client.get("/login").text)
-    assert match
-    return match.group(1)
+    return client.get("/api/csrf").json()["csrf_token"]
 
 
 def _post_login(client: TestClient, password: str, token: str | None = None):
     token = token if token is not None else _login_token(client)
-    return client.post(
-        "/login", data={"password": password, "csrf_token": token}, follow_redirects=False
-    )
+    return client.post("/api/login", json={"password": password}, headers={"X-CSRF-Token": token})
 
 
 @pytest.fixture
@@ -48,7 +40,7 @@ def app_with_routes(settings: Settings):
     def probe_post() -> dict[str, bool]:
         return {"ok": True}
 
-    app.include_router(router)
+    include_first(app, router)
     return app
 
 
@@ -63,15 +55,14 @@ def probe_client(app_with_routes) -> TestClient:
 
 def test_login_succeeds_with_correct_password(client: TestClient) -> None:
     res = _post_login(client, OWNER_PASSWORD)
-    assert res.status_code == 303
-    assert res.headers["location"] == "/sessions"
+    assert res.status_code == 200
     assert client.cookies.get(SESSION_COOKIE)
 
 
 def test_login_fails_with_wrong_password(client: TestClient) -> None:
     res = _post_login(client, "wrong-password")
     assert res.status_code == 401
-    assert "비밀번호가 맞지 않아요" in res.text
+    assert "비밀번호가 맞지 않아요" in res.json()["error"]["message"]
     assert SESSION_COOKIE not in client.cookies
 
 
@@ -95,7 +86,7 @@ def test_session_cookie_attributes(client: TestClient) -> None:
 
 
 def test_anonymous_csrf_cookie_attributes(client: TestClient) -> None:
-    res = client.get("/login")
+    res = client.get("/api/csrf")
     set_cookie = res.headers["set-cookie"].lower()
     assert set_cookie.startswith(f"{CSRF_COOKIE}=")
     assert "httponly" in set_cookie
@@ -127,22 +118,15 @@ def test_session_cookie_signed_with_another_secret_is_rejected(
 def test_logout_clears_session(probe_client: TestClient) -> None:
     token = login(probe_client)
     assert probe_client.get("/probe").status_code == 200
-    res = probe_client.post("/logout", headers={"X-CSRF-Token": token}, follow_redirects=False)
-    assert res.status_code == 303
+    res = probe_client.post("/api/logout", headers={"X-CSRF-Token": token})
+    assert res.status_code == 200
     assert probe_client.get("/probe").status_code == 401
 
 
 def test_logout_without_csrf_token_is_rejected(probe_client: TestClient) -> None:
     login(probe_client)
-    assert probe_client.post("/logout").status_code == 403
+    assert probe_client.post("/api/logout").status_code == 403
     assert probe_client.get("/probe").status_code == 200
-
-
-def test_login_page_redirects_when_already_logged_in(client: TestClient) -> None:
-    login(client)
-    res = client.get("/login", follow_redirects=False)
-    assert res.status_code == 303
-    assert res.headers["location"] == "/sessions"
 
 
 # ---------------------------------------------------------------- 분당 5회 제한 (25.3)
@@ -162,7 +146,7 @@ def test_fifth_attempt_can_still_succeed(client: TestClient) -> None:
     token = _login_token(client)
     for _ in range(4):
         assert _post_login(client, "wrong", token).status_code == 401
-    assert _post_login(client, OWNER_PASSWORD, token).status_code == 303
+    assert _post_login(client, OWNER_PASSWORD, token).status_code == 200
 
 
 class _Clock:
@@ -217,22 +201,14 @@ def test_unauthenticated_browser_navigation_redirects_to_login(probe_client: Tes
     assert res.headers["location"] == "/login"
 
 
-def test_unauthenticated_htmx_request_gets_login_redirect_header(
-    probe_client: TestClient,
-) -> None:
-    res = probe_client.get("/probe", headers={"HX-Request": "true", "Accept": "text/html"})
-    assert res.status_code == 401
-    assert res.headers["HX-Redirect"] == "/login"
-
-
 def test_unauthenticated_unknown_path_is_rejected_not_404(probe_client: TestClient) -> None:
     assert probe_client.get("/no-such-page").status_code == 401
 
 
 def test_public_paths_need_no_login(probe_client: TestClient) -> None:
     assert probe_client.get("/healthz").status_code == 200
-    assert probe_client.get("/login").status_code == 200
-    assert probe_client.get("/static/app.css").status_code == 200
+    assert probe_client.get("/api/csrf").status_code == 200
+    assert probe_client.get("/login").status_code != 401  # 화면이 없으면 503, 있으면 200
 
 
 def test_authenticated_request_passes(probe_client: TestClient) -> None:
@@ -276,8 +252,8 @@ def test_csrf_token_from_another_session_is_rejected(
 
 
 def test_login_post_requires_csrf_token(client: TestClient) -> None:
-    client.get("/login")
-    res = client.post("/login", data={"password": OWNER_PASSWORD}, follow_redirects=False)
+    client.get("/api/csrf")
+    res = client.post("/api/login", json={"password": OWNER_PASSWORD})
     assert res.status_code == 403
     assert SESSION_COOKIE not in client.cookies
 
@@ -286,7 +262,7 @@ def test_login_post_without_anonymous_cookie_is_rejected(client: TestClient) -> 
     token = _login_token(client)
     client.cookies.clear()
     res = client.post(
-        "/login", data={"password": OWNER_PASSWORD, "csrf_token": token}, follow_redirects=False
+        "/api/login", json={"password": OWNER_PASSWORD}, headers={"X-CSRF-Token": token}
     )
     assert res.status_code == 403
 
@@ -303,34 +279,3 @@ def test_csrf_failure_message_does_not_leak_secrets(probe_client: TestClient) ->
     res = probe_client.post("/probe")
     for secret in (OWNER_HASH, SESSION_SECRET):
         assert secret not in res.text
-
-
-# ---------------------------------------------------------------- 화면 틀 (25.6, 2.7)
-
-
-def test_base_template_exposes_csrf_token_and_htmx(client: TestClient) -> None:
-    html = client.get("/login").text
-    match = re.search(r'<meta name="csrf-token" content="([^"]+)"', html)
-    assert match
-    assert match.group(1) == _login_token(client)
-    assert "/static/vendor/htmx.min.js" in html
-    assert "/static/app.js" in html
-
-
-def test_csrf_script_adds_header_to_htmx_requests(client: TestClient) -> None:
-    js = client.get("/static/app.js").text
-    assert "htmx:configRequest" in js
-    assert "X-CSRF-Token" in js
-
-
-def test_stylesheet_honors_reduced_motion_and_uses_tokens(client: TestClient) -> None:
-    css = client.get("/static/app.css").text
-    assert "prefers-reduced-motion: reduce" in css
-    assert "animation: none" in css
-    assert not re.search(r"#[0-9a-fA-F]{3,8}\b", css), "색은 tokens.css의 변수로만 쓴다"
-
-
-def test_htmx_license_is_kept_next_to_vendored_file(client: TestClient) -> None:
-    res = client.get("/static/vendor/htmx.LICENSE")
-    assert res.status_code == 200
-    assert "Zero-Clause BSD" in res.text

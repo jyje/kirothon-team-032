@@ -39,7 +39,6 @@ CSRF_HEADER = "X-CSRF-Token"
 CSRF_FIELD = "csrf_token"
 
 LOGIN_PATH = "/login"
-LOGIN_REDIRECT = "/sessions"
 LOGIN_LIMIT = 5  # 1분 안에 허용하는 로그인 시도 수
 LOGIN_WINDOW_SECONDS = 60.0
 
@@ -198,14 +197,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
     @staticmethod
     def _reject_unauthenticated(request: Request) -> Response:
-        is_htmx = request.headers.get("HX-Request") == "true"
+        # 주소창으로 연 화면은 로그인 화면으로 보내고, fetch 요청은 401로 알린다.
         wants_html = "text/html" in request.headers.get("accept", "")
-        if request.method in SAFE_METHODS and wants_html and not is_htmx:
+        if request.method in SAFE_METHODS and wants_html:
             return RedirectResponse(LOGIN_PATH, status_code=303)
-        response = PlainTextResponse("로그인이 필요해요.", status_code=401)
-        if is_htmx:
-            response.headers["HX-Redirect"] = LOGIN_PATH
-        return response
+        return PlainTextResponse("로그인이 필요해요.", status_code=401)
 
     @staticmethod
     async def _csrf_ok(request: Request, auth: Auth) -> bool:

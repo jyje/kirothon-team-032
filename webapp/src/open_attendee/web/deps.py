@@ -1,4 +1,4 @@
-"""라우터가 함께 쓰는 Jinja2 템플릿 설정과 의존성.
+"""라우터가 함께 쓰는 의존성.
 
 `routes_*.py`가 아니라서 `main.py`가 라우터로 자동 등록하지 않는다.
 """
@@ -6,33 +6,16 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import Depends, Request
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session
 
 from open_attendee.assets import AssetService
-from open_attendee.auth import csrf_token_for, current_owner
+from open_attendee.auth import current_owner
 from open_attendee.config import Settings
 from open_attendee.sessions import SessionService
 from open_attendee.storage import BlobStore
-
-WEB_DIR = Path(__file__).parent
-STATIC_DIR = WEB_DIR / "static"
-TEMPLATES_DIR = WEB_DIR / "templates"
-
-
-def _base_context(request: Request) -> dict[str, Any]:
-    """모든 화면이 쓰는 값: CSRF 토큰(`<meta>`와 폼)과 로그인 여부."""
-    return {
-        "csrf_token": csrf_token_for(request),
-        "logged_in": bool(getattr(request.state, "owner_id", None)),
-    }
-
-
-templates = Jinja2Templates(directory=TEMPLATES_DIR, context_processors=[_base_context])
 
 
 def get_db(request: Request) -> Iterator[Session]:
@@ -66,14 +49,6 @@ def get_asset_service(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AssetService:
     return AssetService(db, blobs, settings)
-
-
-def is_htmx(request: Request) -> bool:
-    return request.headers.get("HX-Request") == "true"
-
-
-def wants_json(request: Request) -> bool:
-    return "application/json" in request.headers.get("accept", "")
 
 
 Owner = Annotated[str, Depends(get_owner)]

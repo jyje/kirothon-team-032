@@ -213,28 +213,28 @@ def _check_service_layer(world: World) -> None:
 def _check_http_layer(world: World) -> None:
     """로그인한 소유자가 부를 수 있는 모든 경로를 불러 응답에 상대 데이터가 없는지 본다."""
     client = world.client
-    pages = [client.get("/sessions")] + [
-        client.get(f"/sessions/{b.session_id}") for b in world.mine
-    ]
-    for page in pages:
-        assert page.status_code == 200
-        assert FOREIGN_TAG not in page.text
+    listing = client.get("/api/sessions")
+    assert listing.status_code == 200
+    assert FOREIGN_TAG not in listing.text
     for built in world.mine:
-        assert built.title in pages[0].text
+        assert built.title in listing.text
+        detail = client.get(f"/api/sessions/{built.session_id}")
+        assert detail.status_code == 200
+        assert FOREIGN_TAG not in detail.text
 
     for foreign in world.foreign:
         sid = foreign.session_id
         responses = [
-            client.get(f"/sessions/{sid}"),
-            client.patch(f"/sessions/{sid}", data={"title": "가로채기"}),
-            client.put(f"/sessions/{sid}/blocks/{uuid.uuid4()}", data={"text": "끼워 넣기"}),
-            client.delete(f"/sessions/{sid}"),
+            client.get(f"/api/sessions/{sid}"),
+            client.patch(f"/api/sessions/{sid}", json={"title": "가로채기"}),
+            client.put(f"/api/sessions/{sid}/blocks/{uuid.uuid4()}", json={"text": "끼워 넣기"}),
+            client.delete(f"/api/sessions/{sid}"),
         ]
         for block_id in foreign.block_ids:
             responses.append(
-                client.put(f"/sessions/{sid}/blocks/{block_id}", data={"text": "덮기"})
+                client.put(f"/api/sessions/{sid}/blocks/{block_id}", json={"text": "덮기"})
             )
-            responses.append(client.delete(f"/sessions/{sid}/blocks/{block_id}"))
+            responses.append(client.delete(f"/api/sessions/{sid}/blocks/{block_id}"))
         for res in responses:
             assert res.status_code == 404
             assert FOREIGN_TAG not in res.text
@@ -244,7 +244,7 @@ def _check_http_layer(world: World) -> None:
         target = world.mine[0].session_id
         for foreign in world.foreign:
             for block_id in foreign.block_ids:
-                res = client.put(f"/sessions/{target}/blocks/{block_id}", data={"text": "x"})
+                res = client.put(f"/api/sessions/{target}/blocks/{block_id}", json={"text": "x"})
                 assert res.status_code == 422
                 assert FOREIGN_TAG not in res.text
 
