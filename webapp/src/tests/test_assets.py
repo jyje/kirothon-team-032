@@ -187,7 +187,7 @@ def test_크기_상한은_종류별로_정해진_값이다() -> None:
     mb = 1024 * 1024
     assert SIZE_LIMITS == {
         AssetKind.PHOTO: 20 * mb,
-        AssetKind.SLIDES: 100 * mb,
+        AssetKind.SLIDES: 30 * mb,
         AssetKind.REFERENCE: 20 * mb,
         AssetKind.VOICE_MEMO: 50 * mb,
         AssetKind.RECORDING: 2048 * mb,

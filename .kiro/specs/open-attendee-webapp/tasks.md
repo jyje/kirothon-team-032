@@ -127,7 +127,7 @@
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 7.1_
 
   - [x] 5.6 `assets.py`: `AssetService`(업로드 검사와 저장)
-    - 매직 바이트로 형식을 확인하고(사진 JPEG, PNG, HEIC / 슬라이드 PDF / 참고자료 TXT, MD, PDF / 오디오 webm, m4a, mp3, wav), 종류별 크기 상한(사진 20MB, 발표자료 100MB, 참고자료 20MB, 음성 메모 50MB, 녹음 2GB)과 세션당 개수 상한(사진 200장, 발표자료 20개, 참고자료 50개)을 지킨다. 형식 불일치는 415, 상한 초과는 413, 깨진 파일과 암호 PDF는 422, 용량 부족은 507.
+    - 매직 바이트로 형식을 확인하고(사진 JPEG, PNG, HEIC / 슬라이드 PDF / 참고자료 TXT, MD, PDF / 오디오 webm, m4a, mp3, wav), 종류별 크기 상한(사진 20MB, 발표자료 30MB, 참고자료 20MB, 음성 메모 50MB, 녹음 2GB)과 세션당 개수 상한(사진 200장, 발표자료 20개, 참고자료 50개)을 지킨다. 형식 불일치는 415, 상한 초과는 413, 깨진 파일과 암호 PDF는 422, 용량 부족은 507.
     - PPTX 슬라이드는 `DocExtractor.supports`가 거짓이면 PDF로 변환하라는 안내와 함께 415를 돌려준다.
     - `kind=recording`은 `FEATURE_RECORDING=false` 또는 `TRANSCRIBER=none`이면 503. 동의가 필요한 자료는 `require_consent`가 통과하지 않으면 403이고 파일을 저장하지 않는다.
     - 사진은 `sanitize`한 결과만 저장하고(원본 미저장), 문서는 저장 직후 `DocChunk`를 만든다. 원래 파일 이름은 `display_name`에만 둔다. 사진 설명(caption)과 사진 연결의 수동 지정을 저장하고, 수동 지정은 이후 자동 연결이 덮어쓰지 않게 표시한다.

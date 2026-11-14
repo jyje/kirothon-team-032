@@ -747,7 +747,7 @@ class LiveSummary(SQLModel, table=True):
 
 | 대상 | 규칙 |
 |---|---|
-| 업로드 크기 | 사진 20MB, 발표자료 100MB, 참고자료 20MB, 음성 메모 50MB, 녹음 2GB. 넘으면 413 |
+| 업로드 크기 | 사진 20MB, 발표자료 30MB, 참고자료 20MB, 음성 메모 50MB, 녹음 2GB. 넘으면 413 |
 | 세션당 개수 | 사진 200장 `[가정 A7]`, 발표자료 20개, 참고자료 50개 |
 | 형식 | 사진 JPEG, PNG, HEIC(JPEG로 변환). 발표자료 PDF, PPTX. 참고자료 TXT, MD, PDF. 오디오 webm, m4a, mp3, wav. 매직 바이트로 확인 |
 | 녹음 | `kind=recording`이면 `consent_id`가 필수. 같은 세션의 철회되지 않은 기록이어야 하고, 세 항목이 모두 참이어야 함 |

@@ -52,7 +52,7 @@ MB: Final = 1024 * 1024
 # 종류별 크기 상한(요구사항 8.3)과 세션당 개수 상한(3.1, 6.5, 7.2).
 SIZE_LIMITS: Final[dict[AssetKind, int]] = {
     AssetKind.PHOTO: 20 * MB,
-    AssetKind.SLIDES: 100 * MB,
+    AssetKind.SLIDES: 30 * MB,  # 발표자료 PDF는 가볍게 유지한다
     AssetKind.REFERENCE: 20 * MB,
     AssetKind.VOICE_MEMO: 50 * MB,
     AssetKind.RECORDING: 2048 * MB,

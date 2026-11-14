@@ -44,8 +44,8 @@ ingress:
   # 클러스터에 있는 ClusterIssuer 이름.
   clusterIssuer: nginx-letsencrypt-prod
   host: open-attendee.example.com
-  # 발표자료 PDF가 100MB까지라서 nginx 기본(1m)보다 크게 둔다.
-  proxyBodySize: 100m
+  # 발표자료 PDF는 30MB까지라서 nginx 기본(1m)보다 크게 둔다. 서버의 상한(413)보다 조금 넉넉하게.
+  proxyBodySize: 32m
 
 resources:
   requests:

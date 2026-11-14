@@ -204,7 +204,7 @@ EARS 문장에서 "WHERE 0단계 구성이면", "WHERE 1단계 이후 구성이�
 
 1. THE Asset_Service SHALL 파일 형식을 확장자가 아닌 파일 앞부분의 매직 바이트로 확인한다.
 2. IF 매직 바이트가 자료 종류의 허용 형식(사진 JPEG, PNG, HEIC / 발표자료 PDF, PPTX / 참고자료 TXT, MD, PDF / 오디오 webm, m4a, mp3, wav)과 맞지 않으면, THEN THE Asset_Service SHALL 415를 돌려주고 파일을 저장하지 않는다.
-3. IF 업로드 크기가 종류별 상한(사진 20MB, 발표자료 100MB, 참고자료 20MB, 음성 메모 50MB, 녹음 2GB)을 넘으면, THEN THE Asset_Service SHALL 413을 돌려주고 파일을 저장하지 않는다.
+3. IF 업로드 크기가 종류별 상한(사진 20MB, 발표자료 30MB, 참고자료 20MB, 음성 메모 50MB, 녹음 2GB)을 넘으면, THEN THE Asset_Service SHALL 413을 돌려주고 파일을 저장하지 않는다.
 4. THE Asset_Service SHALL 파일을 `<owner>/<session>/<asset_uuid>` 형식의 키로 저장하고, 원래 파일 이름은 표시용으로 DB에만 둔다.
 5. WHEN Open_Attendee가 저장된 파일을 응답으로 내보내면, THE Open_Attendee SHALL `Content-Disposition: attachment`와 `X-Content-Type-Options: nosniff` 헤더를 붙인다.
 6. WHEN Owner가 자료 삭제를 요청하면, THE Asset_Service SHALL 해당 Asset의 DB 행, 파생 데이터(Doc_Chunk, 전사 구간), Blob_Store 파일을 함께 삭제한다.

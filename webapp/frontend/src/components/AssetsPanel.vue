@@ -119,7 +119,7 @@ defineExpose({ reload: load })
     <h2>발표자료와 참고자료</h2>
     <div class="actions">
       <label class="btn pick">
-        발표자료(PDF)
+        발표자료(PDF, 30MB까지)
         <input type="file" accept="application/pdf" multiple hidden :disabled="busy" @change="onPick('slides', $event)" />
       </label>
       <label class="btn pick">
