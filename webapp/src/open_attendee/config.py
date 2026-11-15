@@ -67,6 +67,8 @@ class Settings:
     data_dir: Path = Path("./data")
     blob_backend: str = "local"
     s3_bucket: str | None = None
+    s3_region: str | None = None
+    s3_endpoint: str | None = None
     feature_recording: bool = False
     transcriber: str = "none"
     stt_model: str = "small"
@@ -128,6 +130,8 @@ class Settings:
             data_dir=Path(get("DATA_DIR", "./data") or "./data"),
             blob_backend=blob_backend,
             s3_bucket=s3_bucket,
+            s3_region=get("AWS_REGION") or get("AWS_DEFAULT_REGION"),
+            s3_endpoint=get("S3_ENDPOINT_URL"),
             feature_recording=feature_recording,
             transcriber=transcriber,
             stt_model=get("STT_MODEL", "small") or "small",

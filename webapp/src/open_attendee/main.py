@@ -30,8 +30,9 @@ from open_attendee.errors import ConsentRequired, NotFound, UploadRejected, Vali
 from open_attendee.jobs import worker_loop
 from open_attendee.llm import build_gateway
 from open_attendee.logging_redact import install_log_redaction
+from open_attendee.s3_storage import S3BlobStore
 from open_attendee.spa import mount_spa
-from open_attendee.storage import LocalBlobStore, StorageFull
+from open_attendee.storage import LocalBlobStore, StorageFull, StorageUnavailable
 
 logger = logging.getLogger("open_attendee")
 
@@ -114,13 +115,17 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        if settings.blob_backend != "local":
-            # S3 저장소는 1단계(20.1)에서 만든다. 몰래 로컬에 쓰지 않도록 시작을 거부한다.
-            raise RuntimeError("BLOB_BACKEND=s3는 아직 지원하지 않아요")
         engine = make_engine(settings.db_path, settings.sqlite_journal_mode)
         init_db(engine)
         app.state.engine = engine
-        app.state.blobs = LocalBlobStore(settings.data_dir / "blobs")
+        if settings.blob_backend == "s3":
+            if settings.s3_bucket is None:
+                raise RuntimeError("S3_BUCKET 설정이 필요해요.")
+            app.state.blobs = S3BlobStore(
+                settings.s3_bucket, region=settings.s3_region, endpoint=settings.s3_endpoint
+            )
+        else:
+            app.state.blobs = LocalBlobStore(settings.data_dir / "blobs")
         stop = Event()
         worker = Thread(
             target=worker_loop,
@@ -139,6 +144,8 @@ def create_app(
             stop.set()
             await to_thread(worker.join, 5)
             engine.dispose()
+            if isinstance(app.state.blobs, S3BlobStore):
+                app.state.blobs.close()
 
     # 인증 전에 API 구조가 드러나지 않게 문서 화면은 끈다.
     app = FastAPI(
@@ -165,10 +172,12 @@ def create_app(
                 session.connection().execute(text("SELECT 1"))
         except (SQLAlchemyError, AttributeError):
             ready = False
-        try:
-            free_bytes: int | None = shutil.disk_usage(settings.data_dir).free
-        except OSError:
-            free_bytes = None
+        free_bytes: int | None = None
+        if settings.blob_backend == "local":
+            try:
+                free_bytes = shutil.disk_usage(settings.data_dir).free
+            except OSError:
+                pass
         body = {
             "ready": ready,
             "llm": describe_llm(factory()),
@@ -191,6 +200,10 @@ def create_app(
     @app.exception_handler(StorageFull)
     async def storage_full(_request: Request, _exc: StorageFull) -> JSONResponse:
         return JSONResponse({"detail": "저장 공간이 부족해요."}, status_code=507)
+
+    @app.exception_handler(StorageUnavailable)
+    async def storage_unavailable(_request: Request, exc: StorageUnavailable) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=503)
 
     @app.exception_handler(ValidationFailed)
     async def validation_failed(_request: Request, exc: ValidationFailed) -> JSONResponse:

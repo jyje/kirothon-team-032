@@ -19,6 +19,23 @@
 - 로컬은 `webapp/.env`(커밋하지 않음)를 쓰고, 예시는 `webapp/.env.example`이에요.
 - 쿠키에 `Secure`가 붙어 있어서 로그인 유지는 `https://`나 `http://localhost`에서만 돼요.
 
+### S3 첨부 저장소
+
+기본값은 `BLOB_BACKEND=local`이에요. 새 환경에서 S3를 사용하려면 버킷을 준비하고 Helm의 `config`에 아래 값을 넣어요.
+
+```yaml
+config:
+  BLOB_BACKEND: s3
+  S3_BUCKET: open-attendee-attachments
+  AWS_REGION: ap-northeast-2
+  # S3 호환 서비스의 경우에만 지정해요.
+  # S3_ENDPOINT_URL: https://object-storage.example.com
+```
+
+Boto3의 기본 자격 증명 체인을 사용해요. 워크로드에 IAM 역할을 연결하거나, 액세스 키를 사용하는 환경에서는 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`와 필요한 경우 `AWS_SESSION_TOKEN`을 기존 Secret에 넣어요. 권한은 버킷의 `s3:ListBucket`과 첨부 키의 `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject`가 필요해요.
+
+SQLite는 계속 `DATA_DIR`의 PVC에 기록해요. 기존 배포에서 저장소를 전환할 때는 먼저 기존 첨부의 키 구조를 유지해 새 저장소로 복사해야 해요. 버전 관리가 켜진 버킷은 삭제된 객체의 이전 버전을 보존하므로, 실제 보존 기간은 버킷의 수명 주기 정책에서 관리해요.
+
 ## 1. 이미지 (CI가 만들어요)
 
 `main`에 머지되면 GitHub Actions의 **Build and push app image**(`.github/workflows/build.yml`)가 amd64와 arm64 이미지를 네이티브 러너에서 각각 빌드하고, 하나의 멀티 아키텍처 태그로 묶어 브랜치에 따라 `ghcr.io/jyje/open-attendee-dev`(main, dev), `-stg`(stg), `ghcr.io/jyje/open-attendee`(prd)에 올려요. 방식은 `jyje/mungchilog`의 `build.yml`을 따랐어요.
@@ -85,4 +102,4 @@ helm rollback open-attendee --kube-context microk8s -n open-attendee
 ```
 
 - 데이터 볼륨(PVC)에는 `helm.sh/resource-policy: keep`을 붙여서 `helm uninstall`을 해도 기록이 남아요.
-- 복제본은 1개로 고정이에요. SQLite와 업로드 파일이 같은 볼륨 하나를 쓰기 때문이에요.
+- 복제본은 1개로 고정이에요. SQLite가 PVC 하나에 기록되기 때문이에요.

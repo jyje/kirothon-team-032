@@ -1,4 +1,4 @@
-"""파일 저장소(Blob_Store). 0단계는 `DATA_DIR` 아래 로컬 구현만 쓴다(S3는 1단계, 20.1).
+"""파일 저장소. 로컬 볼륨과 S3에서 공통 키 규칙을 사용한다.
 
 키는 `<owner>/<session>/<asset_uuid>` 형식이다. 원래 파일 이름은 키에 쓰지 않는다(요구사항 8.4).
 키에 경로를 벗어나는 문자(`..`, 절대 경로, 구분자 오용)가 있으면 파일을 건드리기 전에 거부한다.
@@ -33,6 +33,10 @@ class BlobNotFound(FileNotFoundError):
 
 class StorageFull(OSError):
     """저장소에 쓸 공간이 없다. 호출한 쪽이 507로 바꾼다."""
+
+
+class StorageUnavailable(OSError):
+    """첨부 저장소 요청을 완료하지 못했다."""
 
 
 class BlobStore(Protocol):
