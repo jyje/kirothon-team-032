@@ -122,6 +122,7 @@ def test_export_only_after_approval_with_notice_marks_and_sources(api: TestClien
     draft = _draft(api)
     ids = {s["text"]: s["id"] for s in _sentences(draft)}
     assert api.get(f"/api/drafts/{draft['id']}/export.md").status_code == 409
+    assert api.get(f"/api/drafts/{draft['id']}/export.html").status_code == 409
     api.patch(
         f"/api/drafts/{draft['id']}/sentences/{ids['스팟 인스턴스로 비용이 40% 줄었다.']}",
         json={"action": "keep_as_opinion"},
@@ -143,6 +144,53 @@ def test_export_only_after_approval_with_notice_marks_and_sources(api: TestClien
     assert "나도 써 보고 싶다." in text  # 인사이트는 출처 표시 없이
     assert "1. 메모: 메모 1번째 블록" in text
     assert "출처 없는 주장" not in text
+    html = api.get(f"/api/drafts/{draft['id']}/export.html")
+    assert html.status_code == 200
+    assert html.headers["content-type"] == "text/html; charset=utf-8"
+    assert html.headers["content-disposition"] == 'attachment; filename="open-attendee-draft.html"'
+    assert "<h1>AWS 밋업</h1>" in html.text
+    assert "<p>이 글은 AI가" in html.text
+    assert "스팟 인스턴스로 비용이 40% 줄었다. (출처 미확인)" in html.text
+    assert "나도 써 보고 싶다." in html.text
+    assert 'href="#source-1">[1]</a>' in html.text
+    assert '<li id="source-1">메모: 메모 1번째 블록</li>' in html.text
+    assert "출처 없는 주장" not in html.text
+
+
+def test_html_export_escapes_title_sentences_and_source_labels(api: TestClient) -> None:
+    from sqlmodel import Session, select
+
+    from open_attendee.models import Fact
+
+    sid = _session(api)
+    api.patch(f"/api/sessions/{sid}", json={"title": '<script>title()</script> & "행사"'})
+    api.app.state.llm_gateway = LLMGateway(make_ask({0: True, 1: True, 2: True}))  # type: ignore[attr-defined]
+    draft = api.post(f"/api/sessions/{sid}/draft").json()["draft"]
+    for sentence in _sentences(draft):
+        if sentence["verify_status"] == "unverified":
+            api.delete(f"/api/drafts/{draft['id']}/sentences/{sentence['id']}")
+    with Session(api.app.state.engine) as db:  # type: ignore[attr-defined]
+        for fact in db.exec(select(Fact).where(Fact.draft_id == draft["id"])):
+            if fact.sources:
+                fact.sources = [
+                    source.model_copy(update={"locator": '<img src="https://example.net/probe">'})
+                    for source in fact.sources
+                ]
+                db.add(fact)
+        db.commit()
+    api.post(
+        f"/api/drafts/{draft['id']}/insights",
+        json={"section_id": "wrap", "text": '<a href="javascript:probe()">의견</a>'},
+    )
+    assert api.post(f"/api/drafts/{draft['id']}/approve").status_code == 200
+    html = api.get(f"/api/drafts/{draft['id']}/export.html")
+    assert html.status_code == 200
+    assert "<h1>&lt;script&gt;title()&lt;/script&gt; &amp; &quot;행사&quot;</h1>" in html.text
+    assert "&lt;a href=&quot;javascript:probe()&quot;&gt;의견&lt;/a&gt;" in html.text
+    assert "&lt;img src=&quot;https://example.net/probe&quot;&gt;" in html.text
+    assert "<script" not in html.text
+    assert "<img" not in html.text
+    assert 'href="javascript:' not in html.text
 
 
 def test_edit_keeps_sources_and_is_blocked_after_approval(api: TestClient) -> None:
