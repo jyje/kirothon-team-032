@@ -89,11 +89,11 @@ defineExpose({ reload: load })
     <div class="actions">
       <label class="btn btn-primary pick">
         사진 올리기
-        <input type="file" accept="image/jpeg,image/png,image/heic" multiple hidden :disabled="busy" @change="onPick('photo', $event)" />
+        <input type="file" accept="image/jpeg,image/png,image/heic" multiple :disabled="busy" @change="onPick('photo', $event)" />
       </label>
       <label class="btn pick">
         바로 찍기
-        <input type="file" accept="image/*" capture="environment" hidden :disabled="busy" @change="onPick('photo', $event)" />
+        <input type="file" accept="image/*" capture="environment" :disabled="busy" @change="onPick('photo', $event)" />
       </label>
       <span class="hint">{{ photos.length }} / {{ limits.photo ?? 200 }}장</span>
     </div>
@@ -120,11 +120,11 @@ defineExpose({ reload: load })
     <div class="actions">
       <label class="btn pick">
         발표자료(PDF, 30MB까지)
-        <input type="file" accept="application/pdf" multiple hidden :disabled="busy" @change="onPick('slides', $event)" />
+        <input type="file" accept="application/pdf" multiple :disabled="busy" @change="onPick('slides', $event)" />
       </label>
       <label class="btn pick">
         참고자료(PDF, TXT, MD)
-        <input type="file" accept="application/pdf,.txt,.md,text/plain,text/markdown" multiple hidden :disabled="busy" @change="onPick('reference', $event)" />
+        <input type="file" accept="application/pdf,.txt,.md,text/plain,text/markdown" multiple :disabled="busy" @change="onPick('reference', $event)" />
       </label>
     </div>
     <ul v-if="docs.length" class="docs">
@@ -144,8 +144,17 @@ defineExpose({ reload: load })
 .panel { display: grid; gap: var(--space-4); }
 h2 { margin: 0; font-family: var(--font-hand); font-weight: 400; letter-spacing: var(--ls-label); color: var(--text-muted-on-dark); }
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; }
-.pick { display: inline-block; }
+.pick { display: inline-block; position: relative; }
+.pick input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: inherit;
+}
 .pick:focus-within { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.pick:has(input:disabled) { opacity: 0.6; cursor: not-allowed; }
 .hint { color: var(--color-lavender); font-size: var(--fs-hint); }
 .error { margin: 0; background: var(--color-purple-dark); border: var(--border); border-color: var(--color-kiro); border-radius: var(--radius-bubble); padding: var(--space-3) var(--space-4); }
 .photos { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
