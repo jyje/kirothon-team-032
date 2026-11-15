@@ -65,6 +65,23 @@ export type Draft = {
   status: 'generating' | 'in_review' | 'approved' | 'failed'
   approved_at: string | null
   unverified_count: number
+  template_name: string | null
   sections: DraftSection[]
 }
 export type DraftResponse = { draft: Draft | null; llm_configured: boolean }
+
+export type TemplateInfo = { id: string; name: string; sections: string[] }
+export type TemplateSection = {
+  id: string
+  title: string
+  instruction: string
+  max_sentences: number
+  insight_slot: boolean
+}
+export type TemplateDetail = {
+  id: string
+  name: string
+  tone: string
+  built_in: boolean
+  sections: TemplateSection[]
+}
