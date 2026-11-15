@@ -3,6 +3,7 @@ import { auth, refreshAuth } from './auth'
 import LoginView from './views/LoginView.vue'
 import SessionDetailView from './views/SessionDetailView.vue'
 import SessionsView from './views/SessionsView.vue'
+import TemplatesView from './views/TemplatesView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -12,6 +13,7 @@ export const router = createRouter({
     { path: '/login', name: 'login', component: LoginView },
     { path: '/sessions', name: 'sessions', component: SessionsView },
     { path: '/sessions/:id', name: 'session', component: SessionDetailView },
+    { path: '/templates', name: 'templates', component: TemplatesView },
   ],
 })
 

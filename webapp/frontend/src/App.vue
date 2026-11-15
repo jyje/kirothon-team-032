@@ -4,11 +4,13 @@ import { useRoute } from 'vue-router'
 import WorkspaceSidebar from '@/components/WorkspaceSidebar.vue'
 
 const route = useRoute()
-const showSidebar = computed(() => route.name === 'sessions' || route.name === 'session')
+const showSidebar = computed(() =>
+  route.name === 'sessions' || route.name === 'session' || route.name === 'templates',
+)
 const menuExpanded = ref(false)
 const main = ref<HTMLElement>()
 
-watch(() => route.fullPath, (_, previous) => {
+watch([() => route.path, () => route.hash], (_, [previous]) => {
   menuExpanded.value = false
   if (previous !== '/') main.value?.focus({ preventScroll: true })
 }, { flush: 'post' })
