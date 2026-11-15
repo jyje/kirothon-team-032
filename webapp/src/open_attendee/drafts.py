@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from html import escape
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -32,7 +33,7 @@ from open_attendee.models import (
 )
 from open_attendee.pipeline.sources import SourceMap, build_source_map, render_sources
 
-AI_NOTICE = "> 이 글은 AI가 기록을 바탕으로 초안을 만들고, 사람이 검토해 승인했어요."
+AI_NOTICE = "이 글은 AI가 기록을 바탕으로 초안을 만들고, 사람이 검토해 승인했어요."
 NO_SOURCE_NOTE = "근거 출처가 없어요"
 NOT_SUPPORTED_NOTE = "출처가 이 문장을 뒷받침하는지 확인하지 못했어요"
 
@@ -385,32 +386,99 @@ _KIND_LABELS = {
 }
 
 
-def export_markdown(db: Session, draft: Draft, title: str) -> str:
-    """승인된 초안만 마크다운으로 내보낸다. 외부로 보내거나 게시하지 않는다(24)."""
+@dataclass(frozen=True)
+class ExportSentence:
+    text: str
+    citations: list[int]
+
+
+@dataclass(frozen=True)
+class ExportSection:
+    title: str
+    sentences: list[ExportSentence]
+
+
+def _export_content(db: Session, draft: Draft) -> tuple[list[ExportSection], list[str]]:
     if draft.status is not DraftStatus.APPROVED:
         raise ReviewConflict("승인한 초안만 내보낼 수 있어요.")
     view = view_draft(db, draft)
-    lines = [AI_NOTICE, "", f"# {title}", ""]
-    cited: list[str] = []
+    sections = []
+    cited: dict[str, int] = {}
     for section in view.sections:
         if not section["sentences"]:
             continue
-        lines += [f"## {section['title']}", ""]
-        parts = []
-        for s in section["sentences"]:
-            text = s["text"]
-            if s["verify_status"] == VerifyStatus.KEPT_AS_OPINION.value:
+        sentences = []
+        for sentence in section["sentences"]:
+            text = sentence["text"]
+            if sentence["verify_status"] == VerifyStatus.KEPT_AS_OPINION.value:
                 text += " (출처 미확인)"
-            marks = ""
-            for src in s["sources"]:
+            citations = []
+            for src in sentence["sources"]:
                 label = f"{_KIND_LABELS.get(src['kind'], src['kind'])}: {src['locator']}"
-                if label not in cited:
-                    cited.append(label)
-                marks += f"[{cited.index(label) + 1}]"
-            parts.append(text + marks)
+                citations.append(cited.setdefault(label, len(cited) + 1))
+            sentences.append(ExportSentence(text, citations))
+        sections.append(ExportSection(section["title"], sentences))
+    return sections, list(cited)
+
+
+def export_markdown(db: Session, draft: Draft, title: str) -> str:
+    """승인된 초안을 마크다운 파일로 내보낸다."""
+    sections, sources = _export_content(db, draft)
+    lines = [f"> {AI_NOTICE}", "", f"# {title}", ""]
+    for section in sections:
+        lines += [f"## {section.title}", ""]
+        parts = [
+            sentence.text + "".join(f"[{number}]" for number in sentence.citations)
+            for sentence in section.sentences
+        ]
         lines += [" ".join(parts), ""]
-    if cited:
+    if sources:
         lines += ["## 출처", ""]
-        lines += [f"{i}. {label}" for i, label in enumerate(cited, start=1)]
+        lines += [f"{i}. {label}" for i, label in enumerate(sources, start=1)]
         lines.append("")
+    return "\n".join(lines)
+
+
+def export_html(db: Session, draft: Draft, title: str) -> str:
+    """승인된 초안을 외부 리소스 없이 열 수 있는 HTML 파일로 내보낸다."""
+    sections, sources = _export_content(db, draft)
+    title = escape(title)
+    lines = [
+        "<!doctype html>",
+        '<html lang="ko">',
+        "<head>",
+        '<meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1">',
+        (
+            '<meta http-equiv="Content-Security-Policy" '
+            "content=\"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'\">"
+        ),
+        f"<title>{title}</title>",
+        "<style>",
+        "body { max-width: 70ch; margin: 2rem auto; padding: 0 1rem; font: 1rem/1.65 system-ui; }",
+        "p, h1, h2, li { overflow-wrap: anywhere; }",
+        "article section p { white-space: pre-wrap; }",
+        "</style>",
+        "</head>",
+        "<body>",
+        "<main><article>",
+        f"<p>{AI_NOTICE}</p>",
+        f"<h1>{title}</h1>",
+    ]
+    for section in sections:
+        lines.append(f"<section><h2>{escape(section.title)}</h2>")
+        parts = []
+        for sentence in section.sentences:
+            marks = "".join(
+                f'<a href="#source-{number}">[{number}]</a>' for number in sentence.citations
+            )
+            parts.append(escape(sentence.text) + marks)
+        lines.append(f"<p>{' '.join(parts)}</p></section>")
+    if sources:
+        lines.append("<section><h2>출처</h2><ol>")
+        lines.extend(
+            f'<li id="source-{i}">{escape(label)}</li>' for i, label in enumerate(sources, start=1)
+        )
+        lines.append("</ol></section>")
+    lines.extend(["</article></main>", "</body>", "</html>"])
     return "\n".join(lines)

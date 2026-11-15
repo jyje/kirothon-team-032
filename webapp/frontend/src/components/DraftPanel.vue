@@ -169,7 +169,8 @@ onMounted(load)
         </button>
         <template v-else>
           <a class="btn" :href="`/api/drafts/${draft.id}/export.md`" download="open-attendee-draft.md">마크다운 내려받기</a>
-          <button class="btn" type="button" @click="copyMarkdown">복사</button>
+          <a class="btn" :href="`/api/drafts/${draft.id}/export.html`" download="open-attendee-draft.html">HTML 내려받기</a>
+          <button class="btn" type="button" @click="copyMarkdown">마크다운 복사</button>
         </template>
         <span v-if="notice" class="hint" role="status">{{ notice }}</span>
       </div>
