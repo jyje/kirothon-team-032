@@ -66,7 +66,7 @@ defineExpose({ reload: load })
         <p>{{ b.text }}</p>
         <ul class="chips" aria-label="출처">
           <li v-for="s in b.sources" :key="s.target_id" class="chip">
-            <span class="chip-kind">{{ kindLabel[s.kind] ?? s.kind }}</span>{{ s.locator }}
+            <span v-if="!s.locator.startsWith(kindLabel[s.kind] ?? s.kind)" class="chip-kind">{{ kindLabel[s.kind] ?? s.kind }}</span>{{ s.locator }}
           </li>
         </ul>
       </li>

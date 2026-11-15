@@ -25,6 +25,9 @@ test('템플릿을 저장하고 검토한 초안을 HTML과 Markdown으로 내�
   await nav.getByRole('link', { name: 'AI 요약', exact: true }).click()
   await summary.getByRole('button', { name: '요약 만들기', exact: true }).click()
   await expect(summary.getByText(record, { exact: true })).toBeVisible()
+  await expect(summary.getByRole('list', { name: '출처' }).getByRole('listitem')).toHaveText(
+    '메모 1번째 블록',
+  )
   await nav.getByRole('link', { name: '템플릿', exact: true }).click()
   await expect(page.getByRole('heading', { name: '블로그', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '복제', exact: true }).click()
