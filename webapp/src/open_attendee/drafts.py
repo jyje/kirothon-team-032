@@ -8,7 +8,6 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -25,87 +24,12 @@ from open_attendee.models import (
     Sentence,
     SentenceOrigin,
     SourceRef,
-    TemplateSection,
+    Template,
     VerifyStatus,
     utcnow,
 )
 from open_attendee.pipeline.sources import SourceMap, build_source_map, render_sources
-
-BLOG_TEMPLATE_ID = "builtin-blog"
-BLOG_SECTIONS = [
-    TemplateSection(
-        id="intro",
-        title="들어가며",
-        instruction="행사와 이날 다룬 주제를 소개한다.",
-        max_sentences=2,
-    ),
-    TemplateSection(
-        id="body",
-        title="핵심 내용",
-        instruction="발표와 메모에서 알게 된 핵심 내용을 순서대로 정리한다.",
-        max_sentences=6,
-    ),
-    TemplateSection(
-        id="wrap",
-        title="정리",
-        instruction="기록에서 확인되는 결론이나 다음 일정만 짧게 정리한다.",
-        max_sentences=2,
-        insight_slot=True,
-    ),
-]
-LINKEDIN_TEMPLATE_ID = "builtin-linkedin"
-LINKEDIN_SECTIONS = [
-    TemplateSection(
-        id="hook",
-        title="첫 문장",
-        instruction="이날 가장 눈에 띈 내용 하나를 한 문장으로 던진다.",
-        max_sentences=1,
-    ),
-    TemplateSection(
-        id="points",
-        title="배운 점",
-        instruction="기록에서 확인되는 배운 점을 짧은 문장으로 하나씩 쓴다.",
-        max_sentences=5,
-    ),
-    TemplateSection(
-        id="closing",
-        title="마무리",
-        instruction="기록에 근거한 한두 문장으로 맺는다. 근거 없는 홍보 문구는 쓰지 않는다.",
-        max_sentences=2,
-        insight_slot=True,
-    ),
-]
-
-
-@dataclass(frozen=True)
-class BuiltinTemplate:
-    id: str
-    name: str
-    output_kind: str  # 프롬프트에 넣는 글의 종류
-    tone: str
-    sections: list[TemplateSection]
-
-
-BUILTIN_TEMPLATES: dict[str, BuiltinTemplate] = {
-    BLOG_TEMPLATE_ID: BuiltinTemplate(
-        BLOG_TEMPLATE_ID, "블로그", "블로그 글", "차분하고 읽기 쉬운 설명체", BLOG_SECTIONS
-    ),
-    LINKEDIN_TEMPLATE_ID: BuiltinTemplate(
-        LINKEDIN_TEMPLATE_ID, "링크드인", "링크드인 게시글", "짧고 간결한 문장", LINKEDIN_SECTIONS
-    ),
-}
-
-
-class UnknownTemplate(ValueError):
-    """내장 템플릿에 없는 ID다."""
-
-
-def list_templates() -> list[dict[str, Any]]:
-    return [
-        {"id": t.id, "name": t.name, "sections": [x.title for x in t.sections]}
-        for t in BUILTIN_TEMPLATES.values()
-    ]
-
+from open_attendee.templates import TemplateSnapshot, read_snapshot
 
 AI_NOTICE = "> 이 글은 AI가 기록을 바탕으로 초안을 만들고, 사람이 검토해 승인했어요."
 NO_SOURCE_NOTE = "근거 출처가 없어요"
@@ -160,8 +84,11 @@ class _Judgement(BaseModel):
     supported: bool
 
 
+SUPPORT_BATCH_SIZE = 200
+
+
 class _SupportOut(BaseModel):
-    results: list[_Judgement] = Field(max_length=200)
+    results: list[_Judgement] = Field(max_length=SUPPORT_BATCH_SIZE)
 
 
 class NoSources(Exception):
@@ -181,9 +108,10 @@ class DraftView:
     draft: Draft
     sections: list[dict[str, Any]]
     unverified_count: int
+    template_name: str | None
 
 
-def _section_prompt(template: BuiltinTemplate) -> str:
+def _section_prompt(template: Template) -> str:
     return "\n".join(
         f'- id="{x.id}" 제목="{x.title}" max_sentences={x.max_sentences}: {x.instruction}'
         for x in template.sections
@@ -212,12 +140,7 @@ def _judge_support(
     return {r.index for r in out.results if r.supported and 0 <= r.index < len(rows)}
 
 
-def generate_draft(
-    db: Session, gateway: LLMGateway, session_id: str, template_id: str = BLOG_TEMPLATE_ID
-) -> Draft:
-    template = BUILTIN_TEMPLATES.get(template_id)
-    if template is None:
-        raise UnknownTemplate(template_id)
+def generate_draft(db: Session, gateway: LLMGateway, session_id: str, template: Template) -> Draft:
     source_map = build_source_map(db, session_id)
     if not len(source_map):
         raise NoSources
@@ -229,27 +152,29 @@ def generate_draft(
     )
     out = gateway.complete_json(prompt, _GenOut)  # LLMError는 호출자가 502로 바꾼다
 
-    by_id = {x.id: x for x in template.sections}
+    remaining = {section.id: section.max_sentences for section in template.sections}
     generated: list[tuple[str, str, list[str]]] = []  # (섹션, 문장, 유효한 라벨)
     for section in out.sections:
-        spec = by_id.get(section.id)
-        if spec is None:
-            continue  # 템플릿에 없는 섹션은 버린다(19.5)
-        for sentence in section.sentences[: spec.max_sentences]:
+        sentences = section.sentences[: remaining.get(section.id, 0)]
+        for sentence in sentences:
             labels = [lb.strip() for lb in sentence.sources if source_map.get(lb.strip())]
             generated.append((section.id, sentence.text.strip(), list(dict.fromkeys(labels))))
+        if sentences:
+            remaining[section.id] -= len(sentences)
 
-    supported = _judge_support(
-        gateway, [(text, labels) for _sid, text, labels in generated if labels], source_map
-    )
+    rows = [(text, labels) for _sid, text, labels in generated if labels]
+    supported: set[int] = set()
+    for start in range(0, len(rows), SUPPORT_BATCH_SIZE):
+        batch = rows[start : start + SUPPORT_BATCH_SIZE]
+        supported.update(start + index for index in _judge_support(gateway, batch, source_map))
     judged_index = {i: n for n, i in enumerate(i for i, g in enumerate(generated) if g[2])}
 
     draft = Draft(
         session_id=session_id,
         template_id=template.id,
-        template_snapshot=json.dumps(
-            [x.model_dump() for x in template.sections], ensure_ascii=False
-        ),
+        template_snapshot=TemplateSnapshot(
+            name=template.name, sections=template.sections
+        ).model_dump_json(),
         status=DraftStatus.IN_REVIEW,
         llm_calls=gateway.calls,
         llm_input_chars=gateway.input_chars,
@@ -319,17 +244,15 @@ def view_draft(db: Session, draft: Draft) -> DraftView:
     sentences = db.exec(
         select(Sentence).where(Sentence.draft_id == draft.id).order_by(Sentence.position)
     ).all()
-    snapshot = {x["id"]: x for x in json.loads(draft.template_snapshot)}
-    titles = {k: v["title"] for k, v in snapshot.items()}
-    order = list(titles)
+    snapshot = read_snapshot(draft)
     sections: list[dict[str, Any]] = []
-    for section_id in order:
-        items = [s for s in sentences if s.section_id == section_id]
+    for section in snapshot.sections:
+        items = [s for s in sentences if s.section_id == section.id]
         sections.append(
             {
-                "id": section_id,
-                "title": titles[section_id],
-                "insight_slot": bool(snapshot[section_id].get("insight_slot", False)),
+                "id": section.id,
+                "title": section.title,
+                "insight_slot": section.insight_slot,
                 "sentences": [
                     {
                         "id": s.id,
@@ -346,7 +269,7 @@ def view_draft(db: Session, draft: Draft) -> DraftView:
             }
         )
     unverified = sum(1 for s in sentences if s.verify_status is VerifyStatus.UNVERIFIED)
-    return DraftView(draft, sections, unverified)
+    return DraftView(draft, sections, unverified, snapshot.name)
 
 
 # ---------------------------------------------------------------------------- 검토
@@ -407,7 +330,7 @@ def add_insight(db: Session, draft: Draft, section_id: str, text: str) -> Senten
     text = text.strip()
     if not 1 <= len(text) <= 1000:
         raise ValidationFailed("인사이트는 1~1,000자여야 해요.")
-    if section_id not in {s["id"] for s in json.loads(draft.template_snapshot)}:
+    if section_id not in {section.id for section in read_snapshot(draft).sections}:
         raise ValidationFailed("알 수 없는 섹션이에요.")
     last = db.exec(
         select(Sentence)
