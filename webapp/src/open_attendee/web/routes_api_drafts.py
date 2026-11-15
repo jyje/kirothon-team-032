@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from open_attendee import drafts as svc
@@ -142,19 +142,26 @@ def approve_draft(draft_id: str, owner: Owner, db: Db) -> JSONResponse | dict[st
     return _body(db, draft)
 
 
-@router.get("/drafts/{draft_id}/export.md", response_model=None)
-def export_draft(draft_id: str, owner: Owner, sessions: Sessions, db: Db) -> Response:
+@router.get("/drafts/{draft_id}/export.{extension}", response_model=None)
+def export_draft(
+    draft_id: str, extension: Literal["md", "html"], owner: Owner, sessions: Sessions, db: Db
+) -> Response:
     draft = svc.get_draft(db, owner, draft_id)
     event = sessions.get(owner, draft.session_id)
     try:
-        text = svc.export_markdown(db, draft, event.title)
+        if extension == "html":
+            text = svc.export_html(db, draft, event.title)
+            media_type = "text/html"
+        else:
+            text = svc.export_markdown(db, draft, event.title)
+            media_type = "text/markdown"
     except svc.ReviewConflict as exc:
         return _error(409, "conflict", str(exc))
-    return PlainTextResponse(
+    return Response(
         text,
-        media_type="text/markdown; charset=utf-8",
+        media_type=media_type,
         headers={
-            "Content-Disposition": 'attachment; filename="open-attendee-draft.md"',
+            "Content-Disposition": f'attachment; filename="open-attendee-draft.{extension}"',
             "X-Content-Type-Options": "nosniff",
         },
     )
