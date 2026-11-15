@@ -3,6 +3,7 @@
 ## 지원 범위 (지금)
 
 - 설치 환경: **웹앱**만 지원해요.
+- 작업 공간: 사이드바에서 내 행사와 필기·자료·AI 요약·초안으로 이동해요. 작은 화면에서는 메뉴를 접을 수 있어요. [#35](https://github.com/jyje/open-attendee/issues/35)
 - 배포 대상: **온프레미스 Kubernetes 클러스터**.
 - 배포 방식: **k8s + Helm 네이티브**. 차트는 `helm/`, 이미지는 `docker/`에 있어요.
 
@@ -19,7 +20,7 @@
 
 | 항목 | 상태 | 추적 |
 |---|---|---|
-| 웹앱 사이드바와 행사 내 화면 이동 | 진행 중 | [#35](https://github.com/jyje/open-attendee/issues/35) |
+| 자료 업로드의 키보드 조작 | 예정 | [#36](https://github.com/jyje/open-attendee/issues/36) |
 
 ## 지금 하지 않는 것
 
