@@ -15,14 +15,24 @@ test('PPTX의 원래 슬라이드 번호를 출처에 표시하고 PDF도 첨부
     'run', '--frozen', 'python', '-c',
     `import sys; from tests.documents import make_pptx, make_pdf; sys.stdout.buffer.write(${expression})`,
   ], { cwd: server })
+  const slides = fixture('make_pptx(["첫 슬라이드", "", "슬라이드 검증 문장"])')
   await picker.setInputFiles({
     name: 'slides.pptx',
     mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    buffer: fixture('make_pptx(["첫 슬라이드", "", "슬라이드 검증 문장"])'),
+    buffer: slides,
   })
   const pptx = page.getByRole('listitem').filter({ hasText: 'slides.pptx' })
   await expect(pptx).toContainText('3페이지')
   await expect(pptx).toContainText('텍스트 2조각')
+  const slidesLink = pptx.getByRole('link', { name: 'slides.pptx 내려받기', exact: true })
+  await page.getByLabel('참고자료(PDF, TXT, MD)', { exact: true }).focus()
+  await page.keyboard.press('Tab')
+  await expect(slidesLink).toBeFocused()
+  const [slidesDownload] = await Promise.all([
+    page.waitForEvent('download'), page.keyboard.press('Enter'),
+  ])
+  expect(slidesDownload.suggestedFilename()).toBe('slides.pptx')
+  expect(await readFile(await slidesDownload.path())).toEqual(slides)
 
   await nav.getByRole('link', { name: 'AI 요약', exact: true }).click()
   const summary = page.getByRole('region', { name: 'AI 요약' })
@@ -37,6 +47,17 @@ test('PPTX의 원래 슬라이드 번호를 출처에 표시하고 PDF도 첨부
   const pdf = page.getByRole('listitem').filter({ hasText: 'notes.pdf' })
   await expect(pdf).toContainText('1페이지')
   await expect(pdf).toContainText('텍스트 1조각')
+
+  const reference = Buffer.from('참고자료 원본을 내려받습니다.\n')
+  await page.getByLabel('참고자료(PDF, TXT, MD)', { exact: true }).setInputFiles({
+    name: '참고자료.txt', mimeType: 'text/plain', buffer: reference,
+  })
+  const referenceLink = page.getByRole('link', { name: '참고자료.txt 내려받기', exact: true })
+  const [referenceDownload] = await Promise.all([
+    page.waitForEvent('download'), referenceLink.click(),
+  ])
+  expect(referenceDownload.suggestedFilename()).toBe('참고자료.txt')
+  expect(await readFile(await referenceDownload.path())).toEqual(reference)
 })
 
 test('템플릿을 저장하고 검토한 초안을 HTML과 Markdown으로 내려받는다', async ({
