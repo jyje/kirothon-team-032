@@ -119,8 +119,8 @@ defineExpose({ reload: load })
     <h2>발표자료와 참고자료</h2>
     <div class="actions">
       <label class="btn pick">
-        발표자료(PDF, 30MB까지)
-        <input type="file" accept="application/pdf" multiple :disabled="busy" @change="onPick('slides', $event)" />
+        발표자료(PDF, PPTX, 30MB까지)
+        <input type="file" accept="application/pdf,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" multiple :disabled="busy" @change="onPick('slides', $event)" />
       </label>
       <label class="btn pick">
         참고자료(PDF, TXT, MD)
@@ -132,6 +132,9 @@ defineExpose({ reload: load })
         <span class="name">{{ d.display_name }}</span>
         <span class="hint">
           {{ d.kind === 'slides' ? '발표자료' : '참고자료' }} ·
+          <template v-if="d.kind === 'slides' && d.page_count !== null">
+            {{ d.page_count }}페이지 ·
+          </template>
           {{ d.chunk_count ? `텍스트 ${d.chunk_count}조각` : '텍스트 없음' }}
         </span>
         <button class="btn btn-small" type="button" @click="remove(d)">지우기</button>

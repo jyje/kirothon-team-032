@@ -211,6 +211,7 @@ class Asset(SQLModel, table=True):
     blob_key: str | None = None  # 원본 음성이 삭제되면 None
     mime: str
     size_bytes: int = 0
+    page_count: int | None = None  # 새로 추출한 문서의 전체 페이지 수
     captured_at: datetime | None = Field(default=None, sa_column=utc_column(nullable=True))
     consent_id: str | None = None
     solo_voice: bool = False  # 음성 메모가 본인 혼자 말한 것인지 사용자가 표시

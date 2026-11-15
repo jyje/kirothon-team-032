@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from zipfile import ZipFile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -249,12 +251,38 @@ def test_동의_기록과_함께_올리면_녹음을_저장한다(recording_clie
     assert res.json()["status"] == "stored"
 
 
-def test_PPTX는_415와_PDF_변환_안내(
+def test_깨진_PPTX는_422이고_저장하지_않는다(
     auth_client: TestClient, sid: str, db: Session, blobs: LocalBlobStore
 ) -> None:
-    res = upload(auth_client, sid, "slides", make_pptx(["제목"]), "deck.pptx")
-    assert res.status_code == 415
-    assert "PDF" in res.json()["detail"]
+    broken = io.BytesIO()
+    with ZipFile(broken, "w") as archive:
+        archive.writestr("ppt/presentation.xml", "<broken")
+    res = upload(auth_client, sid, "slides", broken.getvalue(), "deck.pptx")
+    assert res.status_code == 422
+    assert "PPTX" in res.json()["detail"]
+    assert asset_count(db) == 0
+    assert blob_files(blobs) == []
+
+
+def test_PPTX_업로드와_목록에_전체_슬라이드_수를_표시(auth_client: TestClient, sid: str) -> None:
+    res = upload(auth_client, sid, "slides", make_pptx(["첫 장", "", "마지막 장"]), "deck.pptx")
+    assert res.status_code == 201
+    assert res.json()["page_count"] == 3
+    item = auth_client.get(f"/api/sessions/{sid}/assets").json()["items"][0]
+    assert item["page_count"] == 3
+    assert item["chunk_count"] == 2
+
+
+def test_PPTX_압축_해제_상한을_넘으면_저장하지_않는다(
+    auth_client: TestClient,
+    sid: str,
+    db: Session,
+    blobs: LocalBlobStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("open_attendee.processors.docs._MAX_PPTX_EXPANDED_BYTES", 1)
+    result = upload(auth_client, sid, "slides", make_pptx(["제목"]), "deck.pptx")
+    assert result.status_code == 413
     assert asset_count(db) == 0
     assert blob_files(blobs) == []
 

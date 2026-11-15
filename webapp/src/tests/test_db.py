@@ -9,7 +9,7 @@ from sqlalchemy import Engine, inspect, text
 from sqlmodel import Session, SQLModel
 
 from open_attendee import models
-from open_attendee.db import make_engine
+from open_attendee.db import init_db, make_engine
 from open_attendee.models import (
     Asset,
     AssetKind,
@@ -23,6 +23,30 @@ from open_attendee.models import (
     Template,
     TemplateSection,
 )
+
+
+def test_document_page_count_migration_preserves_existing_rows(engine: Engine) -> None:
+    with Session(engine) as db:
+        asset = Asset(
+            session_id="legacy",
+            kind=AssetKind.SLIDES,
+            display_name="legacy.pdf",
+            mime="application/pdf",
+        )
+        db.add(asset)
+        db.commit()
+        asset_id = asset.id
+
+    with engine.begin() as conn:
+        conn.exec_driver_sql("ALTER TABLE asset DROP COLUMN page_count")
+
+    init_db(engine)
+    init_db(engine)
+    with Session(engine) as db:
+        old = db.get(Asset, asset_id)
+        assert old is not None
+        assert old.display_name == "legacy.pdf"
+        assert old.page_count is None
 
 
 def test_wal_mode_and_busy_timeout(engine: Engine) -> None:
