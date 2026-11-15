@@ -188,7 +188,6 @@ helm lint helm --set image.tag=test
 - microk8s에 맞춘 값: 기본 저장소가 NFS라서 SQLite를 `delete` 저널로 사용, 인그레스 `nginx`와 `nginx-letsencrypt-prod`, 업로드 본문 32m, 인그레스 뒤 접속자 IP별 로그인 제한(`FORWARDED_ALLOW_IPS`).
 
 **로드맵 (아직 반영하지 않음)**
-- 클러스터에 실제 배포하고 Demo 주소 채우기. 아직 배포하지 않았습니다.
 - `dev`, `stg`, `prd` 브랜치 만들기와 환경별 helm values. 지금은 values 파일 하나입니다.
 - 템플릿 선택·저장·복제, 수정한 문장의 재검증, 더 엄격한 지지 판정, 작업 큐(지금은 요청 안에서 동기 실행).
 - 녹음, STT 전사, 전사 후 원본 삭제, 동의 철회. 사진 얼굴 흐림, PPTX, HTML 내보내기.
