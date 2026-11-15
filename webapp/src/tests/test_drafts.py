@@ -37,6 +37,18 @@ GEN = {
 }
 
 
+def _judgement(index: int, supported: bool, *, spot: bool = False) -> dict:
+    evidence = (
+        {"source": "S2", "quote": "스팟 비용 이야기"}
+        if spot
+        else {
+            "source": "S1",
+            "quote": "Karpenter 이야기",
+        }
+    )
+    return {"index": index, "supported": supported, "evidence": [evidence] if supported else []}
+
+
 def make_ask(support: dict[int, bool] | None, *, fail_support: bool = False):
     """초안 프롬프트에는 GEN을, 지지 판정 프롬프트에는 support 결과를 돌려주는 가짜."""
     calls: list[str] = []
@@ -47,7 +59,11 @@ def make_ask(support: dict[int, bool] | None, *, fail_support: bool = False):
             if fail_support:
                 return "형식 아님"
             return json.dumps(
-                {"results": [{"index": i, "supported": v} for i, v in (support or {}).items()]}
+                {
+                    "results": [
+                        _judgement(i, value, spot=i == 2) for i, value in (support or {}).items()
+                    ]
+                }
             )
         return json.dumps(GEN)
 
@@ -102,6 +118,41 @@ def test_generate_marks_unsupported_and_unsourced_sentences_unverified(api: Test
 def test_failed_support_check_verifies_nothing(api: TestClient) -> None:
     draft = _draft(api, fail_support=True)
     assert all(s["verify_status"] != "verified" for s in _sentences(draft))
+
+
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        [],
+        [{"source": "S1", "quote": "비용 40% 절감"}],
+        [{"source": "S2", "quote": "스팟 비용 이야기"}],
+        [{"source": "S1", "quote": " "}],
+    ],
+    ids=["missing", "fabricated", "uncited", "blank"],
+)
+def test_support_requires_a_real_quote_from_a_cited_source(
+    api: TestClient, evidence: list[dict[str, str]]
+) -> None:
+    assert isinstance(api.app, FastAPI)
+    sid = _session(api)
+
+    def ask(prompt: str) -> str:
+        if "뒷받침되면" in prompt:
+            return json.dumps({"results": [{"index": 0, "supported": True, "evidence": evidence}]})
+        return json.dumps(GEN)
+
+    api.app.state.llm_gateway = LLMGateway(ask)
+    created = api.post(f"/api/sessions/{sid}/draft")
+    assert created.status_code == 200
+    draft = created.json()["draft"]
+    original = _sentences(draft)[0]
+    assert original["verify_status"] == "unverified"
+
+    edited = api.patch(
+        f"/api/drafts/{draft['id']}/sentences/{original['id']}", json={"text": "수정한 문장"}
+    )
+    assert edited.status_code == 200
+    assert _sentences(edited.json())[0]["verify_status"] == "unverified"
 
 
 def test_approval_needs_every_unverified_sentence_handled(api: TestClient) -> None:
@@ -237,7 +288,7 @@ def test_edit_does_not_overwrite_a_draft_approved_during_verification(api: TestC
 
     def approve_during_check(_prompt: str) -> str:
         assert api.post(f"/api/drafts/{draft['id']}/approve").status_code == 200
-        return '{"results": [{"index": 0, "supported": true}]}'
+        return json.dumps({"results": [_judgement(0, True)]})
 
     api.app.state.llm_gateway = LLMGateway(approve_during_check)
     reply = api.patch(
@@ -298,7 +349,7 @@ LINKEDIN_GEN = {
 
 def _linkedin_ask(prompt: str) -> str:
     if "뒷받침되면" in prompt:
-        return json.dumps({"results": [{"index": i, "supported": True} for i in range(20)]})
+        return json.dumps({"results": [_judgement(i, True) for i in range(20)]})
     return json.dumps(LINKEDIN_GEN)
 
 
