@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable
 from datetime import timedelta
@@ -169,7 +170,7 @@ def process_job(engine: Engine, job: Job, gateway_factory: GatewayFactory) -> No
             _require_owner(db, job.session_id, job.owner_id)
             payload = dict(job.payload)
             if job.kind is JobKind.DRAFT:
-                template = Template.model_validate_json(job.payload["template"])
+                template = Template.model_validate(json.loads(job.payload["template"]))
                 result_id = drafts.generate_draft(db, gateway, job.session_id, template).id
             else:
                 result = summary.generate_summary(db, gateway, job.session_id)
