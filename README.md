@@ -203,11 +203,11 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 **배포 환경 (반영됨)**
 - 다단계 `Dockerfile`(화면 빌드, 서버 의존성, 실행), 비루트, 8080, amd64와 arm64. 로컬용 `docker-compose.yml`.
 - `helm/`: 설정은 ConfigMap, 비밀은 미리 만든 Secret 참조, 데이터는 PVC, `/healthz` 확인, 복제본 1개.
+- 환경별 Helm 값 파일은 `dev`, `stg`, `prd`에서 각각 발행한 이미지를 선택합니다. [#59](https://github.com/jyje/open-attendee/issues/59)
 - CI: `ci.yml`(테스트, 린트, 화면 빌드, helm lint), `build.yml`(브랜치별 이미지, 불변 태그).
 - microk8s에 맞춘 값: 기본 저장소가 NFS라서 SQLite를 `delete` 저널로 사용, 인그레스 `nginx`와 `nginx-letsencrypt-prod`, 업로드 본문 32m, 인그레스 뒤 접속자 IP별 로그인 제한(`FORWARDED_ALLOW_IPS`).
 
 **로드맵 (아직 반영하지 않음)**
-- `dev`, `stg`, `prd` 브랜치 만들기와 환경별 helm values. 지금은 values 파일 하나입니다.
 - 수정한 문장의 재검증, 더 엄격한 지지 판정.
 - 녹음, STT 전사, 전사 후 원본 삭제, 동의 철회. 사진 얼굴 흐림.
 - 정리 시간 측정.
