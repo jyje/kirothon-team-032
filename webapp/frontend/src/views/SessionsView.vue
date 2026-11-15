@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { api, ApiError } from '@/api'
-import { logout } from '@/auth'
 import { useRouter } from 'vue-router'
 import type { SessionItem } from '@/types'
 
@@ -36,23 +35,12 @@ async function create() {
   }
 }
 
-async function signOut() {
-  await logout()
-  await router.replace({ name: 'login' })
-}
-
 onMounted(load)
 </script>
 
 <template>
   <section class="page-body">
-    <header class="top">
-      <div>
-        <p class="label">OPEN ATTENDEE</p>
-        <h1>내 행사</h1>
-      </div>
-      <button class="btn btn-small" type="button" @click="signOut">로그아웃</button>
-    </header>
+    <h1>내 행사</h1>
 
     <form class="create" @submit.prevent="create">
       <label class="field grow">
@@ -85,8 +73,6 @@ onMounted(load)
 
 <style scoped>
 .page-body { width: min(760px, 100%); padding: var(--space-6); display: grid; gap: var(--space-5); align-self: start; }
-.top { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-5); }
-.label { font-family: var(--font-hand); letter-spacing: var(--ls-label); color: var(--text-muted-on-dark); margin: 0; }
 h1 { margin: 0; }
 .create { display: flex; gap: var(--space-4); align-items: flex-end; flex-wrap: wrap; }
 .grow { flex: 1 1 240px; }
@@ -96,4 +82,7 @@ h1 { margin: 0; }
 .item { display: grid; gap: var(--space-1); padding: var(--space-4) var(--space-5); color: var(--color-ink); background: var(--color-white); border: var(--border); border-radius: var(--radius-bubble); box-shadow: var(--shadow-btn); text-decoration: none; transition: background var(--dur-base); }
 .item:hover { background: var(--color-lavender); }
 .meta { font-size: var(--fs-hint); }
+@media (max-width: 700px) {
+  .page-body { padding: var(--space-4); }
+}
 </style>

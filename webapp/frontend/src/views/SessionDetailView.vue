@@ -6,12 +6,14 @@ import AssetsPanel from '@/components/AssetsPanel.vue'
 import DraftPanel from '@/components/DraftPanel.vue'
 import SummaryPanel from '@/components/SummaryPanel.vue'
 import type { Block, SessionDetail } from '@/types'
+import { useWorkspaceSection } from '@/workspace'
 
 type Row = Block & { state: 'saved' | 'dirty' | 'saving' | 'error'; message: string }
 
 const route = useRoute()
 const router = useRouter()
 const id = route.params.id as string
+const section = useWorkspaceSection()
 
 const title = ref('')
 const eventDate = ref('')
@@ -107,61 +109,63 @@ onBeforeUnmount(() => timers.forEach((t) => window.clearTimeout(t)))
 
 <template>
   <section class="page-body">
-    <header class="top">
-      <router-link class="back" :to="{ name: 'sessions' }">← 내 행사</router-link>
-      <button class="btn btn-small" type="button" @click="removeSession">행사 삭제</button>
-    </header>
-
     <p v-if="loading" class="hint">불러오는 중…</p>
     <template v-else>
-      <form class="meta" @submit.prevent="saveMeta">
-        <label class="field grow">
-          <span>행사 이름</span>
-          <input v-model="title" maxlength="200" required />
-        </label>
-        <label class="field">
-          <span>날짜</span>
-          <input v-model="eventDate" type="date" />
-        </label>
-        <button class="btn btn-small" type="submit">저장</button>
-        <span v-if="notice" class="hint" role="status">{{ notice }}</span>
-      </form>
+      <header class="top">
+        <h1>{{ title }}</h1>
+        <button class="btn btn-small" type="button" @click="removeSession">행사 삭제</button>
+      </header>
 
-      <h2>필기</h2>
-      <ol class="blocks">
-        <li v-for="row in rows" :key="row.id" class="block" :data-state="row.state">
-          <textarea
-            v-model="row.text"
-            rows="3"
-            maxlength="10000"
-            placeholder="들으면서 적어 보세요"
-            @input="onInput(row)"
-            @blur="save(row)"
-          />
-          <div class="block-foot">
-            <span class="hint" role="status">{{ row.message }}</span>
-            <button class="btn btn-small" type="button" @click="removeBlock(row)">지우기</button>
-          </div>
-        </li>
-      </ol>
-      <div class="dock">
-        <button class="btn btn-primary" type="button" @click="addBlock">+ 메모 추가</button>
+      <div v-show="section.id === 'notes'" class="notes">
+        <form class="meta" @submit.prevent="saveMeta">
+          <label class="field grow">
+            <span>행사 이름</span>
+            <input v-model="title" maxlength="200" required />
+          </label>
+          <label class="field">
+            <span>날짜</span>
+            <input v-model="eventDate" type="date" />
+          </label>
+          <button class="btn btn-small" type="submit">저장</button>
+          <span v-if="notice" class="hint" role="status">{{ notice }}</span>
+        </form>
+
+        <h2>필기</h2>
+        <ol class="blocks">
+          <li v-for="row in rows" :key="row.id" class="block" :data-state="row.state">
+            <textarea
+              v-model="row.text"
+              rows="3"
+              maxlength="10000"
+              placeholder="들으면서 적어 보세요"
+              @input="onInput(row)"
+              @blur="save(row)"
+            />
+            <div class="block-foot">
+              <span class="hint" role="status">{{ row.message }}</span>
+              <button class="btn btn-small" type="button" @click="removeBlock(row)">지우기</button>
+            </div>
+          </li>
+        </ol>
+        <div class="dock">
+          <button class="btn btn-primary" type="button" @click="addBlock">+ 메모 추가</button>
+        </div>
       </div>
 
-      <SummaryPanel :session-id="id" />
+      <SummaryPanel v-show="section.id === 'summary'" :session-id="id" />
 
-      <DraftPanel :session-id="id" />
+      <DraftPanel v-show="section.id === 'draft'" :session-id="id" />
 
-      <AssetsPanel ref="assetsPanel" :session-id="id" :blocks="rows" />
+      <AssetsPanel v-show="section.id === 'assets'" ref="assetsPanel" :session-id="id" :blocks="rows" />
     </template>
   </section>
 </template>
 
 <style scoped>
 .page-body { width: min(760px, 100%); padding: var(--space-6); display: grid; gap: var(--space-5); align-self: start; }
-.top { display: flex; justify-content: space-between; align-items: center; }
-.back { color: var(--color-lavender); text-decoration: none; }
-.back:hover { text-decoration: underline; }
+.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-4); }
+h1 { margin: 0; overflow-wrap: anywhere; }
+.notes { display: grid; gap: var(--space-5); }
 h2 { margin: 0; font-family: var(--font-hand); font-weight: 400; letter-spacing: var(--ls-label); color: var(--text-muted-on-dark); }
 .hint { margin: 0; color: var(--color-lavender); font-size: var(--fs-hint); }
 .meta { display: flex; gap: var(--space-4); align-items: flex-end; flex-wrap: wrap; }
@@ -176,6 +180,6 @@ h2 { margin: 0; font-family: var(--font-hand); font-weight: 400; letter-spacing:
 /* 모바일에서는 메모 추가 버튼을 엄지가 닿는 화면 아래에 붙여 둔다(요구사항 2.6). */
 @media (max-width: 700px) {
   .dock { position: sticky; bottom: var(--space-4); z-index: 2; }
-  .page-body { padding-bottom: var(--space-4); }
+  .page-body { padding: var(--space-4); }
 }
 </style>

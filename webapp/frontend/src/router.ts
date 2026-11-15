@@ -6,6 +6,7 @@ import SessionsView from './views/SessionsView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior: (_to, _from, savedPosition) => savedPosition ?? { top: 0 },
   routes: [
     { path: '/', redirect: '/sessions' },
     { path: '/login', name: 'login', component: LoginView },
