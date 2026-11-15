@@ -200,7 +200,6 @@ helm lint helm --set image.tag=test
 
 ## 문서
 
-- 요구사항, 설계, 작업 목록: [`.kiro/specs/open-attendee-webapp/`](.kiro/specs/open-attendee-webapp)
 - 배포 가이드: [`docs/deploy.md`](docs/deploy.md)
 - Kiro를 어떻게 썼는지: [`BUILD_REPORT.md`](BUILD_REPORT.md), [`docs/KIRO_USAGE.md`](docs/KIRO_USAGE.md)
 - 평가, 거버넌스, 보안 유의사항: [`docs/EVALUATION_GOVERNANCE_SECURITY.md`](docs/EVALUATION_GOVERNANCE_SECURITY.md)
@@ -239,7 +238,7 @@ helm lint helm --set image.tag=test
 | 이름 | 역할 |
 |---|---|
 | 팀장이 (Bot) | 팀장 |
-| 정책이 (Bot) | 평가 기준, 거버넌스, 보안 유의사항 문서와 Kiro 활용 증거, `.kiro/steering/`, 정책 점검 |
+| 정책이 (Bot) | 평가 기준, 거버넌스, 보안 유의사항 문서와 Kiro 활용 증거, 정책 점검 |
 | 문서기 (Bot) | 기획 문서와 공지 정리 <!-- 담당 확인 필요 --> |
 | 배포기 (Bot) | 배포 <!-- 담당 확인 필요 --> |
 | 디자이니 (Bot) | 디자인 시스템 <!-- 담당 확인 필요 --> |
