@@ -17,6 +17,12 @@
 | AWS EKS 레시피 | 예정 | 같은 Helm 차트를 EKS에 올리는 방법을 정리해요. |
 | AWS ECS 레시피 | 예정 | Helm을 쓰지 않으니 작업 정의(task definition)를 새로 만들어요. |
 
+## 파생 로드맵
+
+| 항목 | 상태 | 추적 |
+|---|---|---|
+| GitHub Actions의 Node.js 20 런타임 경고 정리 | 예정 | [#44](https://github.com/jyje/open-attendee/issues/44) |
+
 ## 지금 하지 않는 것
 
 - 맥북, iOS 앱 빌드와 배포.
