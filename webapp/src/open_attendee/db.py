@@ -47,10 +47,20 @@ def make_engine(db_path: Path | str, journal_mode: str = "wal") -> Engine:
 
 
 def init_db(engine: Engine) -> None:
-    """모든 테이블을 만든다. 이미 있으면 건드리지 않는다."""
+    """테이블을 만들고 이전 버전의 검토 데이터를 보정한다."""
     from open_attendee import models  # noqa: F401  테이블을 SQLModel.metadata에 등록한다.
 
     SQLModel.metadata.create_all(engine)
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            """
+            UPDATE sentence
+            SET verify_status = 'unverified', verify_note = '수정한 문장을 다시 검증해 주세요'
+            WHERE origin = 'ai_edited' AND verify_status = 'verified' AND verify_note = ?
+              AND draft_id IN (SELECT id FROM draft WHERE status = 'in_review')
+            """,
+            ("사용자가 수정함",),
+        )
 
 
 @contextmanager
