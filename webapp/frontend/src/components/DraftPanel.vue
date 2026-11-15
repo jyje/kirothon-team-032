@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { api, ApiError } from '@/api'
-import type { Draft, DraftResponse, DraftSentence } from '@/types'
+import type { Draft, DraftResponse, DraftSentence, TemplateInfo } from '@/types'
 
 const props = defineProps<{ sessionId: string }>()
 const base = computed(() => `/api/sessions/${props.sessionId}/draft`)
 
-type TemplateInfo = { id: string; name: string; sections: string[] }
 const templates = ref<TemplateInfo[]>([])
 const templateId = ref('builtin-blog')
 const draft = ref<Draft | null>(null)
@@ -99,8 +98,8 @@ onMounted(load)
     <h2>초안</h2>
     <div class="actions">
       <label v-if="templates.length" class="picker">
-        <span>템플릿</span>
-        <select v-model="templateId" :disabled="busy || approved">
+        <span id="draft-template-label">템플릿</span>
+        <select v-model="templateId" aria-labelledby="draft-template-label" :disabled="busy || approved">
           <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }} ({{ t.sections.join(' · ') }})</option>
         </select>
       </label>
@@ -115,6 +114,7 @@ onMounted(load)
     <template v-if="draft">
       <p class="hint" role="status">
         <strong>{{ approved ? '승인됨' : '검토 중' }}</strong>
+        <template v-if="draft.template_name"> · 템플릿 {{ draft.template_name }}</template>
         <template v-if="!approved"> · 미검증 문장 {{ draft.unverified_count }}개</template>
         · AI가 만든 초안이에요. 출처를 확인하며 검토해 주세요.
       </p>
@@ -183,8 +183,8 @@ h2 { margin: 0; font-family: var(--font-hand); font-weight: 400; letter-spacing:
 h3 { margin: 0 0 var(--space-3); font-size: 18px; }
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; }
 .actions a.btn { text-decoration: none; display: inline-block; }
-.picker { display: grid; gap: var(--space-1); font-size: var(--fs-hint); color: var(--text-muted-on-dark); }
-.picker select { font: 500 var(--fs-btn-seg) var(--font-body); color: var(--color-ink); background: var(--color-white); border: var(--border); border-radius: var(--radius-pill); padding: var(--space-2) var(--space-4); min-height: 44px; max-width: 100%; }
+.picker { display: grid; min-width: 0; max-width: 100%; gap: var(--space-1); font-size: var(--fs-hint); color: var(--text-muted-on-dark); }
+.picker select { font: 500 var(--fs-btn-seg) var(--font-body); color: var(--color-ink); background: var(--color-white); border: var(--border); border-radius: var(--radius-pill); padding: var(--space-2) var(--space-4); min-height: 44px; min-width: 0; max-width: 100%; text-overflow: ellipsis; }
 .hint { margin: 0; color: var(--color-lavender); font-size: var(--fs-hint); }
 .error { margin: 0; background: var(--color-purple-dark); border: var(--border); border-color: var(--color-kiro); border-radius: var(--radius-bubble); padding: var(--space-3) var(--space-4); }
 .section { display: grid; gap: var(--space-3); }

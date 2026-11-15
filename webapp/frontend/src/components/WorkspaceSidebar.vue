@@ -72,6 +72,11 @@ async function signOut() {
             </router-link>
           </li>
         </ul>
+        <router-link
+          class="nav-link"
+          :class="{ selected: route.name === 'templates' }"
+          :to="{ name: 'templates' }"
+        >템플릿</router-link>
       </nav>
       <div class="account">
         <button class="btn btn-small" type="button" :disabled="signingOut" @click="signOut">
