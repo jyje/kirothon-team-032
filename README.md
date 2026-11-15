@@ -173,7 +173,16 @@ helm lint helm --set image.tag=test
 
 위 검사는 PR과 `main`에서 [`ci.yml`](.github/workflows/ci.yml)이 같은 명령으로 실행합니다. 이미지 빌드는 [`build.yml`](.github/workflows/build.yml)이 PR에서는 검증만 하고, `main`에서만 게시합니다.
 
-테스트가 확인하지 못하는 것: 실제 LLM 호출(가짜 응답으로만 시험), 실제 클러스터 배포, 사용자가 쓰는 브라우저별 화면(헤드리스 Chrome으로만 확인).
+Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite를 연결합니다. 데스크톱 Chromium에서 로그인, 필기 저장, 템플릿 복제·저장, 초안 승인과 HTML·Markdown 다운로드를 확인합니다. 모바일 Chromium 에뮬레이션에서는 사이드바와 키보드 업로드를 확인합니다. [#43](https://github.com/jyje/open-attendee/issues/43)
+
+저장소 루트에서 실행합니다.
+
+```bash
+(cd webapp/src && uv sync --frozen)
+(cd webapp/frontend && npm ci && npx playwright install chromium && npm run test:e2e)
+```
+
+실패 시 로컬에서는 `webapp/frontend/test-results/`의 스크린샷과 추적 파일을 확인하고, GitHub CI에서는 `browser-test-results` 아티팩트를 확인합니다. 초안 생성에는 테스트 모델 응답을 사용합니다.
 
 ---
 
@@ -196,7 +205,7 @@ helm lint helm --set image.tag=test
 - 수정한 문장의 재검증, 더 엄격한 지지 판정, 작업 큐(지금은 요청 안에서 동기 실행).
 - 녹음, STT 전사, 전사 후 원본 삭제, 동의 철회. 사진 얼굴 흐림, PPTX 내보내기.
 - S3 저장소(지금은 로컬 볼륨만), 상태 점검 명령, 정리 시간 측정.
-- 화면 자동 테스트(지금은 헤드리스 Chrome으로 수동 확인), 녹음 법률 검토, 데이터 보관 기간 정책.
+- 녹음 법률 검토, 데이터 보관 기간 정책.
 - 여러 사용자와 공유, AWS GPU 전사. 이번 범위 밖입니다.
 
 ---
