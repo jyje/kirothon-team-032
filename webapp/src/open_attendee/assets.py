@@ -44,7 +44,7 @@ from open_attendee.models import (
     MemoBlock,
     TranscriptSegment,
 )
-from open_attendee.processors.docs import DocExtractor
+from open_attendee.processors.docs import PPTX_MIME, DocExtractor
 from open_attendee.processors.photo import PhotoProcessor, link_photos
 from open_attendee.storage import BlobStore, make_key
 
@@ -52,7 +52,7 @@ MB: Final = 1024 * 1024
 # 종류별 크기 상한(요구사항 8.3)과 세션당 개수 상한(3.1, 6.5, 7.2).
 SIZE_LIMITS: Final[dict[AssetKind, int]] = {
     AssetKind.PHOTO: 20 * MB,
-    AssetKind.SLIDES: 30 * MB,  # 발표자료 PDF는 가볍게 유지한다
+    AssetKind.SLIDES: 30 * MB,
     AssetKind.REFERENCE: 20 * MB,
     AssetKind.VOICE_MEMO: 50 * MB,
     AssetKind.RECORDING: 2048 * MB,
@@ -79,7 +79,6 @@ HEIC_MIME: Final = "image/heic"
 PDF_MIME: Final = "application/pdf"
 TEXT_MIME: Final = "text/plain"
 MARKDOWN_MIME: Final = "text/markdown"
-PPTX_MIME: Final = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
 _HEIC_BRANDS: Final = frozenset(
     {b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"hevm", b"hevs", b"mif1", b"msf1"}
@@ -87,7 +86,6 @@ _HEIC_BRANDS: Final = frozenset(
 _SNIFF_BYTES: Final = 8192
 _SPOOL_MEMORY: Final = 8 * MB
 _MARKDOWN_EXTENSIONS: Final = frozenset({".md", ".markdown"})
-_PPTX_HINT: Final = "PPTX 발표자료는 아직 받지 않아요. PDF로 내보내서 올려 주세요."
 
 
 # ---------------------------------------------------------------------------- 형식 판별
@@ -326,12 +324,11 @@ class AssetService:
 
     def _store_document(self, owner_id: str, asset: Asset, source: BinaryIO) -> Asset:
         if not self.docs.supports(asset.mime, asset.kind):
-            if asset.mime == PPTX_MIME:
-                raise UnsupportedMediaType(_PPTX_HINT)
             raise UnsupportedMediaType(
                 f"{KIND_LABELS[asset.kind]}으로 올릴 수 없는 파일 형식이에요."
             )
         extraction = self.docs.extract(asset, source)  # 깨진 파일과 암호 PDF는 422
+        asset.page_count = extraction.page_count
         source.seek(0)
         asset.status = AssetStatus.READY
         key = make_key(owner_id, asset.session_id, asset.id)

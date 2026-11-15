@@ -50,6 +50,12 @@ def init_db(engine: Engine) -> None:
     """모든 테이블을 만든다. 이미 있으면 건드리지 않는다."""
     from open_attendee import models  # noqa: F401  테이블을 SQLModel.metadata에 등록한다.
 
+    # 기존 자료는 보존하고 새 열만 추가한다.
+    with engine.begin() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        columns = {column[1] for column in conn.exec_driver_sql("PRAGMA table_info(asset)")}
+        if columns and "page_count" not in columns:
+            conn.exec_driver_sql("ALTER TABLE asset ADD COLUMN page_count INTEGER")
     SQLModel.metadata.create_all(engine)
 
 

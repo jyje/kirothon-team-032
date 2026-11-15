@@ -18,6 +18,7 @@ from open_attendee.models import (
     SourceKind,
     SourceRef,
 )
+from open_attendee.processors.docs import PPTX_MIME
 
 # 한 번에 LLM에 보내는 출처 텍스트의 한도(요구사항 18.7). 넘으면 앞에서부터 담고 잘렸다고 알린다.
 MAX_SOURCE_CHARS = 24_000
@@ -74,7 +75,8 @@ def build_source_map(db: Session, session_id: str) -> SourceMap:
             if not chunk.text.strip():
                 continue
             kind = SourceKind.DOC if asset.kind is AssetKind.SLIDES else SourceKind.REFERENCE
-            where = f"{asset.display_name} {chunk.page}쪽"
+            page = f"슬라이드 {chunk.page}" if asset.mime == PPTX_MIME else f"{chunk.page}쪽"
+            where = f"{asset.display_name} {page}"
             ref = SourceRef(kind=kind, target_id=chunk.id, locator=where)
             raw.append((ref, chunk.text.strip()))
 

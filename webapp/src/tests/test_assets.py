@@ -7,6 +7,8 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from pptx import Presentation
+from pptx.util import Inches
 from sqlalchemy import func
 from sqlmodel import Session, select
 
@@ -386,13 +388,36 @@ def test_깨진_PDF는_422이고_저장하지_않는다(
     assert count(db, Asset) == 0
 
 
-def test_PPTX_발표자료는_415와_PDF_변환_안내(
-    assets: AssetService, event: EventSession, blobs: LocalBlobStore, db: Session
+def test_PPTX는_빈_슬라이드를_포함한_전체_수와_원래_번호를_저장한다(
+    assets: AssetService, event: EventSession, db: Session
 ) -> None:
-    with pytest.raises(UnsupportedMediaType, match="PDF"):
-        upload(assets, event, AssetKind.SLIDES, make_pptx(["제목"]), "deck.pptx")
-    assert stored_files(blobs.root) == []
-    assert count(db, Asset) == 0
+    asset = upload(
+        assets, event, AssetKind.SLIDES, make_pptx(["첫 장", "", "마지막 장"]), "deck.pptx"
+    )
+    assert asset.page_count == 3
+    chunks = db.exec(
+        select(DocChunk).where(DocChunk.asset_id == asset.id).order_by(DocChunk.page)
+    ).all()
+    assert [(chunk.page, chunk.text) for chunk in chunks] == [(1, "첫 장"), (3, "마지막 장")]
+
+
+def test_PPTX_그룹과_표의_슬라이드_텍스트를_읽는다(
+    assets: AssetService,
+    event: EventSession,
+    db: Session,
+) -> None:
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    group = slide.shapes.add_group_shape()
+    group.shapes.add_textbox(Inches(1), Inches(1), Inches(3), Inches(1)).text = "묶인 설명"
+    table = slide.shapes.add_table(1, 2, Inches(1), Inches(3), Inches(3), Inches(1)).table
+    table.cell(0, 0).text = "첫 셀"
+    table.cell(0, 1).text = "둘째 셀"
+    stream = io.BytesIO()
+    deck.save(stream)
+    asset = upload(assets, event, AssetKind.SLIDES, stream.getvalue(), "deck.pptx")
+    chunk = db.exec(select(DocChunk).where(DocChunk.asset_id == asset.id)).one()
+    assert chunk.text == "묶인 설명\n첫 셀 둘째 셀"
 
 
 def test_PPTX가_아닌_압축_파일은_415(assets: AssetService, event: EventSession) -> None:
