@@ -23,6 +23,7 @@ export type Asset = {
   display_name: string
   mime: string
   size_bytes: number
+  page_count: number | null
   status: string
   caption: string
   linked_block_id: string | null

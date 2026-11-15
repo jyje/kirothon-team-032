@@ -20,6 +20,8 @@ _data = TemporaryDirectory(prefix="open-attendee-browser-")
 def _answer(prompt: str) -> str:
     if "5~10개 항목으로 요약하세요" in prompt:
         sleep(0.5)
+        if "슬라이드 검증 문장" in prompt:
+            return json.dumps({"bullets": [{"text": "슬라이드 검증 문장", "sources": ["S2"]}]})
         return json.dumps({"bullets": [{"text": _RECORD, "sources": ["S1"]}]})
     if "뒷받침되면" in prompt:
         return json.dumps(

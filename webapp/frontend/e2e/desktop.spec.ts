@@ -1,7 +1,43 @@
+import { execFileSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { expect, test } from '@playwright/test'
 import { createEvent, login, record } from './session'
+
+test('PPTX의 원래 슬라이드 번호를 출처에 표시하고 PDF도 첨부한다', async ({ page }) => {
+  await login(page)
+  await createEvent(page, '발표자료 업로드')
+  const nav = page.getByRole('navigation', { name: '작업 공간' })
+  await nav.getByRole('link', { name: '자료', exact: true }).click()
+  const picker = page.getByLabel('발표자료(PDF, PPTX, 30MB까지)', { exact: true })
+  const server = fileURLToPath(new URL('../../src/', import.meta.url))
+  const fixture = (expression: string) => execFileSync('uv', [
+    'run', '--frozen', 'python', '-c',
+    `import sys; from tests.documents import make_pptx, make_pdf; sys.stdout.buffer.write(${expression})`,
+  ], { cwd: server })
+  await picker.setInputFiles({
+    name: 'slides.pptx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    buffer: fixture('make_pptx(["첫 슬라이드", "", "슬라이드 검증 문장"])'),
+  })
+  const pptx = page.getByRole('listitem').filter({ hasText: 'slides.pptx' })
+  await expect(pptx).toContainText('3페이지')
+  await expect(pptx).toContainText('텍스트 2조각')
+
+  await nav.getByRole('link', { name: 'AI 요약', exact: true }).click()
+  const summary = page.getByRole('region', { name: 'AI 요약' })
+  await summary.getByRole('button', { name: '요약 만들기', exact: true }).click()
+  await expect(summary.getByText('슬라이드 검증 문장', { exact: true })).toBeVisible()
+  await expect(summary.getByRole('list', { name: '출처' })).toContainText('slides.pptx 슬라이드 3')
+
+  await nav.getByRole('link', { name: '자료', exact: true }).click()
+  await picker.setInputFiles({
+    name: 'notes.pdf', mimeType: 'application/pdf', buffer: fixture('make_pdf(["PDF regression"])'),
+  })
+  const pdf = page.getByRole('listitem').filter({ hasText: 'notes.pdf' })
+  await expect(pdf).toContainText('1페이지')
+  await expect(pdf).toContainText('텍스트 1조각')
+})
 
 test('템플릿을 저장하고 검토한 초안을 HTML과 Markdown으로 내려받는다', async ({
   page, context,

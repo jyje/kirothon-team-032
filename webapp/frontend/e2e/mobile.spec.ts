@@ -27,7 +27,7 @@ test('모바일에서 키보드로 사이드바를 열고 파일을 업로드한
   await page.keyboard.press('Tab')
   await expect(page.getByRole('button', { name: '행사 삭제' })).toBeFocused()
 
-  const uploadLabels = ['사진 올리기', '바로 찍기', '발표자료(PDF, 30MB까지)', '참고자료(PDF, TXT, MD)']
+  const uploadLabels = ['사진 올리기', '바로 찍기', '발표자료(PDF, PPTX, 30MB까지)', '참고자료(PDF, TXT, MD)']
   for (const label of uploadLabels) {
     await page.keyboard.press('Tab')
     await expect(page.getByLabel(label, { exact: true })).toBeFocused()
