@@ -8,12 +8,14 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
+from open_attendee import templates
 from open_attendee.errors import NotFound, ValidationFailed
 from open_attendee.llm import LLMError, LLMGateway
 from open_attendee.models import (
@@ -29,7 +31,6 @@ from open_attendee.models import (
     utcnow,
 )
 from open_attendee.pipeline.sources import SourceMap, build_source_map, render_sources
-from open_attendee.templates import TemplateSnapshot, read_snapshot
 
 AI_NOTICE = "> 이 글은 AI가 기록을 바탕으로 초안을 만들고, 사람이 검토해 승인했어요."
 NO_SOURCE_NOTE = "근거 출처가 없어요"
@@ -172,9 +173,10 @@ def generate_draft(db: Session, gateway: LLMGateway, session_id: str, template: 
     draft = Draft(
         session_id=session_id,
         template_id=template.id,
-        template_snapshot=TemplateSnapshot(
-            name=template.name, sections=template.sections
-        ).model_dump_json(),
+        template_snapshot=json.dumps(
+            templates.TemplateSnapshot(name=template.name, sections=template.sections).model_dump(),
+            ensure_ascii=False,
+        ),
         status=DraftStatus.IN_REVIEW,
         llm_calls=gateway.calls,
         llm_input_chars=gateway.input_chars,
@@ -244,7 +246,7 @@ def view_draft(db: Session, draft: Draft) -> DraftView:
     sentences = db.exec(
         select(Sentence).where(Sentence.draft_id == draft.id).order_by(Sentence.position)
     ).all()
-    snapshot = read_snapshot(draft)
+    snapshot = templates.read_snapshot(draft)
     sections: list[dict[str, Any]] = []
     for section in snapshot.sections:
         items = [s for s in sentences if s.section_id == section.id]
@@ -330,7 +332,7 @@ def add_insight(db: Session, draft: Draft, section_id: str, text: str) -> Senten
     text = text.strip()
     if not 1 <= len(text) <= 1000:
         raise ValidationFailed("인사이트는 1~1,000자여야 해요.")
-    if section_id not in {section.id for section in read_snapshot(draft).sections}:
+    if section_id not in {section.id for section in templates.read_snapshot(draft).sections}:
         raise ValidationFailed("알 수 없는 섹션이에요.")
     last = db.exec(
         select(Sentence)
