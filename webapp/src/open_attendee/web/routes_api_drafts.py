@@ -9,7 +9,9 @@ from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel, Field
 
 from open_attendee import drafts as svc
+from open_attendee.errors import NotFound
 from open_attendee.llm import LLMError
+from open_attendee.templates import BLOG_TEMPLATE_ID, get_template
 from open_attendee.web.deps import Db, Gateway, Owner, Sessions
 
 router = APIRouter(prefix="/api")
@@ -21,7 +23,7 @@ class SentencePatch(BaseModel):
 
 
 class DraftCreate(BaseModel):
-    template_id: str = svc.BLOG_TEMPLATE_ID
+    template_id: str = BLOG_TEMPLATE_ID
 
 
 class InsightBody(BaseModel):
@@ -40,16 +42,12 @@ def _body(db: Db, draft: Any, llm_configured: bool | None = None) -> dict[str, A
         "status": draft.status.value,
         "approved_at": draft.approved_at.isoformat() if draft.approved_at else None,
         "unverified_count": view.unverified_count,
+        "template_name": view.template_name,
         "sections": view.sections,
     }
     if llm_configured is not None:
         body["llm_configured"] = llm_configured
     return body
-
-
-@router.get("/templates")
-def list_templates(_owner: Owner) -> dict[str, Any]:
-    return {"templates": svc.list_templates()}
 
 
 @router.get("/sessions/{session_id}/draft")
@@ -79,11 +77,11 @@ def create_draft(
             503, "llm_not_configured", "AI 제공자가 설정되지 않았어요. API 키를 설정해 주세요."
         )
     try:
-        draft = svc.generate_draft(
-            db, gateway, session_id, body.template_id if body else svc.BLOG_TEMPLATE_ID
-        )
-    except svc.UnknownTemplate:
+        template = get_template(db, owner, body.template_id if body else BLOG_TEMPLATE_ID)
+    except NotFound:
         return _error(422, "unknown_template", "알 수 없는 템플릿이에요.")
+    try:
+        draft = svc.generate_draft(db, gateway, session_id, template)
     except svc.NoSources:
         return _error(
             422, "no_sources", "초안을 만들 기록이 없어요. 메모를 쓰거나 자료를 올려 주세요."
