@@ -150,6 +150,6 @@ layout: end
 
 # Open Attendee
 
-github.com/jyje/kirothon-team-032
+github.com/jyje/open-attendee
 
 팀 Studio.R4iny · Kiro Crew로 만들었습니다
