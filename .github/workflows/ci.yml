@@ -18,8 +18,8 @@ jobs:
       run:
         working-directory: webapp/src
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: "3.13"
           enable-cache: true
@@ -37,8 +37,8 @@ jobs:
       run:
         working-directory: provider-manager/src
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: "3.13"
           enable-cache: true
@@ -53,8 +53,8 @@ jobs:
       run:
         working-directory: webapp/frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -65,7 +65,7 @@ jobs:
     name: helm lint
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - run: helm lint helm --set image.tag=ci
       - run: helm template ci helm --set image.tag=ci --set ingress.enabled=true > /dev/null
   browser:
@@ -76,13 +76,13 @@ jobs:
       run:
         working-directory: webapp/frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: webapp/frontend/package-lock.json
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: "3.13"
           enable-cache: true
@@ -94,7 +94,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         if: failure()
         with:
           name: browser-test-results
