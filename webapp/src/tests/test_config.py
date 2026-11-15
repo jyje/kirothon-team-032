@@ -29,6 +29,8 @@ def test_values_are_read(env: dict[str, str]) -> None:
         STT_MODEL="medium",
         BLOB_BACKEND="s3",
         S3_BUCKET="my-bucket",
+        AWS_REGION="us-east-1",
+        S3_ENDPOINT_URL="http://127.0.0.1:9000",
         PROVIDER="Bedrock",
     )
     s = Settings.from_env(env)
@@ -37,6 +39,8 @@ def test_values_are_read(env: dict[str, str]) -> None:
     assert s.stt_model == "medium"
     assert s.blob_backend == "s3"
     assert s.s3_bucket == "my-bucket"
+    assert s.s3_region == "us-east-1"
+    assert s.s3_endpoint == "http://127.0.0.1:9000"
     assert s.provider == "bedrock"
     assert s.owner_password_hash.reveal() == OWNER_HASH
     assert s.session_secret.reveal() == SESSION_SECRET

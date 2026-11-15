@@ -349,8 +349,8 @@ class AssetService:
         written: list[str] = []
         try:
             for key, content in blobs.items():
-                self.blobs.put(key, content)
                 written.append(key)
+                self.blobs.put(key, content)
             asset.blob_key = next(iter(blobs))
             self.db.add(asset)
             self.db.add_all(chunks or [])
