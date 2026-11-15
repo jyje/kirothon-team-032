@@ -94,6 +94,14 @@ helm upgrade --install open-attendee ./helm --kube-context microk8s -n open-atte
 
 ## 4. 확인과 되돌리기
 
+포트 포워딩한 앱은 저장소 루트에서 다음 명령으로 확인해요. 인그레스를 쓰면 끝에 앱의 HTTPS 주소를 넣어요.
+
+```bash
+uv run --frozen --project webapp/src python -m open_attendee.status http://127.0.0.1:8080
+```
+
+명령은 `/healthz`에서 SQLite 준비 상태, LLM 설정, 첨부 저장소 종류를 조회해 JSON으로 표시해요. 준비되면 종료 코드 0을, 준비되지 않았거나 조회에 실패하면 1을 반환해요. LLM 설정 정보와 저장소 종류는 연결 상태 점검과 별개예요.
+
 ```bash
 kubectl --context microk8s -n open-attendee get pods,pvc
 kubectl --context microk8s -n open-attendee logs deploy/open-attendee --tail=50
