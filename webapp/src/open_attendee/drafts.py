@@ -211,8 +211,6 @@ def generate_draft(db: Session, gateway: LLMGateway, session_id: str, template: 
                 verify_note=note,
             )
         )
-    db.commit()
-    db.refresh(draft)
     return draft
 
 

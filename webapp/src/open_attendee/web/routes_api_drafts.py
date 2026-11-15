@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from open_attendee import drafts as svc
 from open_attendee.errors import NotFound
 from open_attendee.llm import LLMError
+from open_attendee.models import Draft
 from open_attendee.templates import BLOG_TEMPLATE_ID, get_template
 from open_attendee.web.deps import Db, Gateway, Owner, Sessions
 
@@ -52,10 +53,17 @@ def _body(db: Db, draft: Any, llm_configured: bool | None = None) -> dict[str, A
 
 @router.get("/sessions/{session_id}/draft")
 def get_draft(
-    session_id: str, owner: Owner, sessions: Sessions, db: Db, gateway: Gateway
+    session_id: str,
+    owner: Owner,
+    sessions: Sessions,
+    db: Db,
+    gateway: Gateway,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     sessions.get(owner, session_id)
-    draft = svc.latest_draft(db, session_id)
+    draft = db.get(Draft, result_id) if result_id else svc.latest_draft(db, session_id)
+    if result_id and (draft is None or draft.session_id != session_id):
+        raise NotFound
     return {
         "draft": _body(db, draft) if draft else None,
         "llm_configured": gateway is not None,
@@ -82,6 +90,7 @@ def create_draft(
         return _error(422, "unknown_template", "알 수 없는 템플릿이에요.")
     try:
         draft = svc.generate_draft(db, gateway, session_id, template)
+        db.commit()
     except svc.NoSources:
         return _error(
             422, "no_sources", "초안을 만들 기록이 없어요. 메모를 쓰거나 자료를 올려 주세요."
