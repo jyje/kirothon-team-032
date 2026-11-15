@@ -4,6 +4,7 @@
 
 - 설치 환경: **웹앱**만 지원해요.
 - 작업 공간: 사이드바에서 내 행사와 필기·자료·AI 요약·초안으로 이동해요. 작은 화면에서는 메뉴를 접을 수 있어요. [#35](https://github.com/jyje/open-attendee/issues/35)
+- 자료 업로드: 키보드로 사진·발표자료·참고자료의 파일 선택을 열 수 있어요. [#36](https://github.com/jyje/open-attendee/issues/36)
 - 배포 대상: **온프레미스 Kubernetes 클러스터**.
 - 배포 방식: **k8s + Helm 네이티브**. 차트는 `helm/`, 이미지는 `docker/`에 있어요.
 
@@ -15,12 +16,6 @@
 | iOS 지원 | 예정 | 지금은 웹앱만 제공해요. |
 | AWS EKS 레시피 | 예정 | 같은 Helm 차트를 EKS에 올리는 방법을 정리해요. |
 | AWS ECS 레시피 | 예정 | Helm을 쓰지 않으니 작업 정의(task definition)를 새로 만들어요. |
-
-## 파생 로드맵
-
-| 항목 | 상태 | 추적 |
-|---|---|---|
-| 자료 업로드의 키보드 조작 | 예정 | [#36](https://github.com/jyje/open-attendee/issues/36) |
 
 ## 지금 하지 않는 것
 
