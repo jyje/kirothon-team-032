@@ -1,7 +1,10 @@
 """큐의 소유자 격리, 선점, 복구와 결과 저장 경계."""
 
+import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from unittest.mock import patch
 from uuid import uuid4
 
 from fastapi import FastAPI
@@ -9,9 +12,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
+from open_attendee import templates
 from open_attendee.jobs import LEASE, claim_next, enqueue, get_job, process_job
 from open_attendee.llm import LLMGateway
 from open_attendee.models import (
+    Draft,
     EventSession,
     Job,
     JobKind,
@@ -102,6 +107,63 @@ def test_retry_backoff_and_attempt_limit(engine: Engine) -> None:
                 db.commit()
             else:
                 assert row.status is JobStatus.FAILED
+
+
+def test_new_process_recovers_persisted_claim(engine: Engine) -> None:
+    event = _event(engine)
+    with Session(engine) as db:
+        job, _ = enqueue(db, event, "owner", JobKind.SUMMARY, {})
+
+    old_worker = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys\n"
+                "from open_attendee.db import make_engine\n"
+                "from open_attendee.jobs import claim_next\n"
+                "print(claim_next(make_engine(sys.argv[1])).id)"
+            ),
+            str(engine.url.database),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert old_worker.stdout.strip() == job.id
+    engine.dispose()
+    with patch("open_attendee.jobs.utcnow", return_value=utcnow() + LEASE + timedelta(seconds=1)):
+        replacement = claim_next(engine)
+    assert replacement is not None
+    assert replacement.id == job.id
+    assert replacement.attempts == 2
+    process_job(engine, replacement, _gateway)
+    with Session(engine) as db:
+        assert get_job(db, job.id, "owner").status is JobStatus.DONE
+
+
+def test_draft_uses_custom_template_snapshot_from_enqueue_time(engine: Engine) -> None:
+    event = _event(engine)
+    with Session(engine) as db:
+        template = templates.clone_template(db, "owner", templates.BLOG_TEMPLATE_ID)
+        old_name = template.name
+        job, _ = enqueue(
+            db, event, "owner", JobKind.DRAFT, {"template": template.model_dump_json()}
+        )
+        template.name = "등록 이후 이름"
+        db.commit()
+    claim = claim_next(engine)
+    assert claim is not None
+    process_job(engine, claim, lambda: LLMGateway(lambda _: '{"sections": []}'))
+    with Session(engine) as db:
+        final = get_job(db, job.id, "owner")
+        assert final.status is JobStatus.DONE
+        draft = db.get(Draft, final.payload["result_id"])
+        assert draft is not None
+        snapshot = templates.read_snapshot(draft)
+        assert snapshot.name == old_name
+        assert snapshot.sections[0].title == "들어가며"
 
 
 def test_job_api_streams_safe_failure_and_hides_other_owners(
