@@ -75,10 +75,20 @@ AI 요약용 키는 나중에 `kubectl ... patch secret` 또는 `kubectl ... cre
 
 ## 3. 배포
 
+브랜치와 같은 환경의 값 파일을 골라 CI Summary의 불변 이미지 태그와 함께 지정해요.
+
+| 브랜치 | Helm 값 파일 | GHCR 이미지 |
+|---|---|---|
+| `main`, `dev` | `helm/values-dev.yaml` | `ghcr.io/jyje/open-attendee-dev` |
+| `stg` | `helm/values-stg.yaml` | `ghcr.io/jyje/open-attendee-stg` |
+| `prd` | `helm/values-prd.yaml` | `ghcr.io/jyje/open-attendee` |
+
+아래는 개발 배포 예시예요. 여러 환경을 같은 클러스터에 두면 환경별 네임스페이스를 사용하고 각 네임스페이스에 Secret을 준비해요.
+
 ```bash
 helm upgrade --install open-attendee ./helm \
   --kube-context microk8s -n open-attendee \
-  --set image.repository=ghcr.io/jyje/open-attendee-dev \
+  -f helm/values-dev.yaml \
   --set image.tag=<CI가 만든 태그, 예: r12-abc1234>
 
 kubectl --context microk8s -n open-attendee rollout status deploy/open-attendee
@@ -89,7 +99,7 @@ kubectl --context microk8s -n open-attendee port-forward svc/open-attendee 8080:
 
 ```bash
 helm upgrade --install open-attendee ./helm --kube-context microk8s -n open-attendee \
-  --set image.tag=<태그> --set ingress.enabled=true --set ingress.host=<도메인>
+  -f helm/values-dev.yaml --set image.tag=<태그> --set ingress.enabled=true --set ingress.host=<도메인>
 ```
 
 ## 4. 확인과 되돌리기
