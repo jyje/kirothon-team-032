@@ -198,6 +198,8 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 
 첨부 파일은 로컬 볼륨이나 S3에 저장할 수 있습니다. 설정은 [배포 가이드](docs/deploy.md#s3-첨부-저장소)를 참고하세요. [#53](https://github.com/jyje/open-attendee/issues/53)
 
+배포 후에는 [상태 점검 명령](docs/deploy.md#4-확인과-되돌리기)으로 준비 상태, LLM 설정, 첨부 저장소를 확인할 수 있습니다. [#57](https://github.com/jyje/open-attendee/issues/57)
+
 **배포 환경 (반영됨)**
 - 다단계 `Dockerfile`(화면 빌드, 서버 의존성, 실행), 비루트, 8080, amd64와 arm64. 로컬용 `docker-compose.yml`.
 - `helm/`: 설정은 ConfigMap, 비밀은 미리 만든 Secret 참조, 데이터는 PVC, `/healthz` 확인, 복제본 1개.
@@ -208,7 +210,7 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 - `dev`, `stg`, `prd` 브랜치 만들기와 환경별 helm values. 지금은 values 파일 하나입니다.
 - 수정한 문장의 재검증, 더 엄격한 지지 판정.
 - 녹음, STT 전사, 전사 후 원본 삭제, 동의 철회. 사진 얼굴 흐림.
-- 상태 점검 명령, 정리 시간 측정.
+- 정리 시간 측정.
 - 녹음 법률 검토, 데이터 보관 기간 정책.
 - 여러 사용자와 공유, AWS GPU 전사. 이번 범위 밖입니다.
 

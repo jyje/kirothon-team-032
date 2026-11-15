@@ -9,6 +9,7 @@
 - 자료 화면에서 발표자료와 참고자료를 원래 파일 이름으로 내려받을 수 있어요. [#54](https://github.com/jyje/open-attendee/issues/54)
 - 첨부 파일은 로컬 볼륨이나 S3에 저장할 수 있어요. [#53](https://github.com/jyje/open-attendee/issues/53)
 - 배포 대상: **온프레미스 Kubernetes 클러스터**.
+- 상태 점검 명령에서 준비 상태, LLM 설정, 첨부 저장소를 조회할 수 있어요. [#57](https://github.com/jyje/open-attendee/issues/57)
 - 배포 방식: **k8s + Helm 네이티브**. 차트는 `helm/`, 이미지는 `docker/`에 있어요.
 - CI와 이미지 빌드의 GitHub Actions는 Node.js 24 런타임을 사용해요. [#44](https://github.com/jyje/open-attendee/issues/44)
 
