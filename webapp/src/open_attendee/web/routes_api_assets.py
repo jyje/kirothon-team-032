@@ -33,6 +33,7 @@ def _asset_body(asset: Asset) -> dict[str, object]:
         "display_name": asset.display_name,
         "mime": asset.mime,
         "size_bytes": asset.size_bytes,
+        "page_count": asset.page_count,
         "status": asset.status.value,
         "caption": asset.caption,
         "linked_block_id": asset.linked_block_id,
