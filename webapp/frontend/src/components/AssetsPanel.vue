@@ -137,6 +137,9 @@ defineExpose({ reload: load })
           </template>
           {{ d.chunk_count ? `텍스트 ${d.chunk_count}조각` : '텍스트 없음' }}
         </span>
+        <a class="btn btn-small" :href="`${base}/${d.id}/file`" :aria-label="`${d.display_name} 내려받기`" download>
+          내려받기
+        </a>
         <button class="btn btn-small" type="button" @click="remove(d)">지우기</button>
       </li>
     </ul>
