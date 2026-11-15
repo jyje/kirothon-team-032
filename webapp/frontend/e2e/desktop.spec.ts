@@ -9,6 +9,12 @@ test('템플릿을 저장하고 검토한 초안을 HTML과 Markdown으로 내�
   await login(page)
   const title = '배포 밋업 <기록>'
   const event = await createEvent(page, title)
+  const nav = page.getByRole('navigation', { name: '작업 공간' })
+  const summary = page.getByRole('region', { name: 'AI 요약' })
+  await nav.getByRole('link', { name: 'AI 요약', exact: true }).click()
+  await summary.getByRole('button', { name: '요약 만들기', exact: true }).click()
+  await expect(summary.getByRole('alert')).toHaveText('사용할 기록이 없어요. 메모나 자료를 추가해 주세요.')
+  await nav.getByRole('link', { name: '필기', exact: true }).click()
   const note = page.getByPlaceholder('들으면서 적어 보세요')
   await note.fill(record)
   await note.press('Tab')
@@ -16,7 +22,9 @@ test('템플릿을 저장하고 검토한 초안을 HTML과 Markdown으로 내�
   await page.reload()
   await expect(note).toHaveValue(record)
 
-  const nav = page.getByRole('navigation', { name: '작업 공간' })
+  await nav.getByRole('link', { name: 'AI 요약', exact: true }).click()
+  await summary.getByRole('button', { name: '요약 만들기', exact: true }).click()
+  await expect(summary.getByText(record, { exact: true })).toBeVisible()
   await nav.getByRole('link', { name: '템플릿', exact: true }).click()
   await expect(page.getByRole('heading', { name: '블로그', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '복제', exact: true }).click()
@@ -36,18 +44,22 @@ test('템플릿을 저장하고 검토한 초안을 HTML과 Markdown으로 내�
   await page.goto(event + '#draft')
   await page.getByLabel('템플릿', { exact: true }).selectOption(templateId)
   const generatedPromise = page.waitForResponse(response =>
-    response.request().method() === 'POST' && response.url().endsWith('/draft'),
+    response.request().method() === 'POST' && response.url().endsWith('/jobs'),
   )
   await page.getByRole('button', { name: '초안 만들기', exact: true }).click()
   const generated = await generatedPromise
-  expect(generated.ok()).toBe(true)
-  const { draft } = await generated.json()
+  expect(generated.status()).toBe(202)
+  const { id: jobId } = await generated.json()
+  await page.reload()
   await expect(page.getByRole('heading', { name: '배포 기록', exact: true })).toBeVisible()
+  const finished = await context.request.get(`/api/jobs/${jobId}`)
+  const result = await finished.json()
+  expect(result.status).toBe('done')
   const approve = page.getByRole('button', { name: /^승인하기/ })
   await expect(approve).toBeDisabled()
   await expect(page.getByRole('link', { name: 'HTML 내려받기' })).toHaveCount(0)
   for (const extension of ['md', 'html']) {
-    const response = await context.request.get(`/api/drafts/${draft.id}/export.${extension}`)
+    const response = await context.request.get(`/api/drafts/${result.result_id}/export.${extension}`)
     expect(response.status()).toBe(409)
   }
   await page.getByRole('button', { name: '의견으로 유지', exact: true }).click()

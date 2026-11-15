@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { api, ApiError } from '@/api'
+import { useAiJob, type AiJob } from '@/aiJobs'
+import { api } from '@/api'
 import type { SummaryResponse } from '@/types'
 
 const props = defineProps<{ sessionId: string }>()
 const path = computed(() => `/api/sessions/${props.sessionId}/summary`)
 
 const data = ref<SummaryResponse | null>(null)
-const busy = ref(false)
-const error = ref('')
 const notice = ref('')
+const loadError = ref('')
+const { busy, error, status, restore, submit } = useAiJob(props.sessionId, 'summary', loadResult)
 
 const kindLabel: Record<string, string> = {
   memo: '메모',
@@ -20,26 +21,29 @@ const kindLabel: Record<string, string> = {
 }
 
 async function load() {
-  data.value = await api<SummaryResponse>(path.value)
-}
-
-async function create() {
-  error.value = ''
-  notice.value = ''
-  busy.value = true
   try {
-    const res = await api<SummaryResponse>(path.value, { method: 'POST' })
-    data.value = res
-    if (res.dropped_bullets) notice.value = `출처를 확인할 수 없는 항목 ${res.dropped_bullets}개는 뺐어요.`
-    if (res.truncated) notice.value += ' 기록이 길어서 앞부분만 사용했어요.'
-  } catch (e) {
-    error.value = e instanceof ApiError ? e.message : '서버에 연결하지 못했어요.'
-  } finally {
-    busy.value = false
+    data.value = await api<SummaryResponse>(path.value)
+    loadError.value = ''
+  } catch {
+    loadError.value = '요약을 불러오지 못했어요.'
   }
 }
 
-onMounted(load)
+async function loadResult(job: AiJob, restored: boolean) {
+  data.value = await api<SummaryResponse>(
+    restored ? path.value : `${path.value}?result_id=${job.result_id}`,
+  )
+  notice.value = ''
+  if (data.value.summary?.id === job.result_id) {
+    if (job.dropped_bullets) notice.value = `출처를 확인할 수 없는 항목 ${job.dropped_bullets}개는 뺐어요.`
+    if (job.truncated) notice.value += ' 기록이 길어서 앞부분만 사용했어요.'
+  }
+}
+
+onMounted(async () => {
+  await load()
+  await restore()
+})
 defineExpose({ reload: load })
 </script>
 
@@ -47,13 +51,14 @@ defineExpose({ reload: load })
   <section class="panel" aria-label="AI 요약">
     <h2>AI 요약</h2>
     <div class="actions">
-      <button class="btn btn-primary" type="button" :disabled="busy || data?.llm_configured === false" @click="create">
-        {{ busy ? '요약하는 중…' : data?.summary ? '다시 요약하기' : '요약 만들기' }}
+      <button class="btn btn-primary" type="button" :disabled="busy || data?.llm_configured !== true" @click="submit()">
+        {{ data?.summary ? '다시 요약하기' : '요약 만들기' }}
       </button>
       <span v-if="data?.llm_configured === false" class="hint">AI 제공자가 설정되지 않았어요(API 키 필요).</span>
       <span v-else class="hint">메모, 자료, 사진 설명을 근거로 요약해요. 모든 항목에 출처가 붙어요.</span>
     </div>
-    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <p v-if="error || loadError" class="error" role="alert">{{ error || loadError }}</p>
+    <p v-if="status" class="hint" role="status">{{ status }}</p>
     <p v-if="notice" class="hint" role="status">{{ notice }}</p>
 
     <ol v-if="data?.summary" class="bullets">
