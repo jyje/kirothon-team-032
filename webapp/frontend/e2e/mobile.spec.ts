@@ -49,6 +49,14 @@ test('모바일에서 키보드로 사이드바를 열고 파일을 업로드한
   ).toBe(true)
 
   await toggle.click()
+  await nav.getByRole('link', { name: 'AI 요약', exact: true }).click()
+  const summary = page.getByRole('region', { name: 'AI 요약' })
+  await summary.getByRole('button', { name: '요약 만들기', exact: true }).click()
+  const source = summary.getByRole('list', { name: '출처' }).getByRole('listitem')
+  await expect(source.getByText('참고자료', { exact: true })).toBeVisible()
+  await expect(source).toContainText('keyboard-reference.txt')
+
+  await toggle.click()
   await page.getByRole('button', { name: '로그아웃', exact: true }).click()
   await expect(page).toHaveURL(/\/login$/)
 })
