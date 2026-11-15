@@ -47,7 +47,7 @@
 |---|---|---|---|
 | 웹 필기 편집기 (블록 단위, 입력을 멈추면 자동 저장) | 메모가 여러 서비스에 흩어짐 | **동작** | [`SessionDetailView.vue`](webapp/frontend/src/views/SessionDetailView.vue), [`sessions.py`](webapp/src/open_attendee/sessions.py) |
 | 사진 첨부 (세션당 200장까지, EXIF 위치 정보 제거, 촬영 시각이 가까운 메모에 자동 연결) | 필기와 사진이 따로 있음 | **동작** | [`AssetsPanel.vue`](webapp/frontend/src/components/AssetsPanel.vue), [`processors/photo.py`](webapp/src/open_attendee/processors/photo.py) |
-| 발표자료(PDF) 첨부와 텍스트 추출 (30MB까지) | 자료를 직접 읽고 요약해야 함 | **동작** (PPTX는 구현 전) | [`processors/docs.py`](webapp/src/open_attendee/processors/docs.py), [`assets.py`](webapp/src/open_attendee/assets.py) |
+| 발표자료(PDF·PPTX) 첨부와 페이지별 텍스트 추출 (30MB까지) | 자료를 직접 읽고 요약해야 함 | **동작** | [`processors/docs.py`](webapp/src/open_attendee/processors/docs.py), [`assets.py`](webapp/src/open_attendee/assets.py) |
 | 참고자료 받기 (PDF, TXT, MD) | 흩어진 참고자료를 따로 찾아야 함 | **동작** (URL 가져오기는 구현 전) | [`assets.py`](webapp/src/open_attendee/assets.py) |
 | 녹음과 STT 전사 (동의 확인 후에만 처리) | 3~4시간 녹음을 직접 정리해야 함 | **동의 게이트만 동작**, 녹음과 전사는 꺼져 있음 | [`consent.py`](webapp/src/open_attendee/consent.py) |
 | AI 요약, 초안 (모든 문장에 출처, 출처가 뒷받침하는지 AI가 한 번 더 확인) | 요약에 시간이 많이 듦 | **동작** (요청 안에서 동기 실행) | [`llm.py`](webapp/src/open_attendee/llm.py), [`drafts.py`](webapp/src/open_attendee/drafts.py), [`SummaryPanel.vue`](webapp/frontend/src/components/SummaryPanel.vue) |
@@ -205,7 +205,7 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 **로드맵 (아직 반영하지 않음)**
 - `dev`, `stg`, `prd` 브랜치 만들기와 환경별 helm values. 지금은 values 파일 하나입니다.
 - 수정한 문장의 재검증, 더 엄격한 지지 판정.
-- 녹음, STT 전사, 전사 후 원본 삭제, 동의 철회. 사진 얼굴 흐림, PPTX 발표자료 첨부와 텍스트 추출.
+- 녹음, STT 전사, 전사 후 원본 삭제, 동의 철회. 사진 얼굴 흐림.
 - S3 저장소(지금은 로컬 볼륨만), 상태 점검 명령, 정리 시간 측정.
 - 녹음 법률 검토, 데이터 보관 기간 정책.
 - 여러 사용자와 공유, AWS GPU 전사. 이번 범위 밖입니다.
