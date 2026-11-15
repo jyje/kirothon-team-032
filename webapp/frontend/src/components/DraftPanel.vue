@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useAiJob, type AiJob } from '@/aiJobs'
 import { api, ApiError } from '@/api'
 import type { Draft, DraftResponse, DraftSentence, TemplateInfo } from '@/types'
 
@@ -10,8 +11,8 @@ const templates = ref<TemplateInfo[]>([])
 const templateId = ref('builtin-blog')
 const draft = ref<Draft | null>(null)
 const llmConfigured = ref<boolean | null>(null)
-const busy = ref(false)
 const error = ref('')
+const { busy, error: jobError, status, restore, submit } = useAiJob(props.sessionId, 'draft', loadResult)
 const notice = ref('')
 const editingId = ref('')
 const editText = ref('')
@@ -25,24 +26,30 @@ function fail(e: unknown, fallback: string) {
 }
 
 async function load() {
-  const res = await api<DraftResponse>(base.value)
-  draft.value = res.draft
-  llmConfigured.value = res.llm_configured
-  templates.value = (await api<{ templates: TemplateInfo[] }>('/api/templates')).templates
+  try {
+    const res = await api<DraftResponse>(base.value)
+    draft.value = res.draft
+    llmConfigured.value = res.llm_configured
+    templates.value = (await api<{ templates: TemplateInfo[] }>('/api/templates')).templates
+  } catch (cause) {
+    fail(cause, '초안을 불러오지 못했어요.')
+  }
 }
 
-async function create() {
+async function loadResult(job: AiJob, restored: boolean) {
+  const res = await api<DraftResponse>(
+    restored ? base.value : `${base.value}?result_id=${job.result_id}`,
+  )
+  draft.value = res.draft
+  llmConfigured.value = res.llm_configured
+  editingId.value = ''
+  insightText.value = {}
+}
+
+function create() {
   error.value = ''
   notice.value = ''
-  busy.value = true
-  try {
-    const res = await api<DraftResponse>(base.value, { json: { template_id: templateId.value } })
-    draft.value = res.draft
-  } catch (e) {
-    fail(e, '서버에 연결하지 못했어요.')
-  } finally {
-    busy.value = false
-  }
+  return submit(templateId.value)
 }
 
 async function call(path: string, init: Parameters<typeof api>[1]) {
@@ -90,7 +97,10 @@ async function copyMarkdown() {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  await restore()
+})
 </script>
 
 <template>
@@ -103,13 +113,14 @@ onMounted(load)
           <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }} ({{ t.sections.join(' · ') }})</option>
         </select>
       </label>
-      <button class="btn btn-primary" type="button" :disabled="busy || llmConfigured === false || approved" @click="create">
-        {{ busy ? '초안을 만드는 중…' : draft ? '다시 만들기' : '초안 만들기' }}
+      <button class="btn btn-primary" type="button" :disabled="busy || llmConfigured !== true || approved" @click="create">
+        {{ draft ? '다시 만들기' : '초안 만들기' }}
       </button>
       <span v-if="llmConfigured === false" class="hint">AI 제공자가 설정되지 않았어요(API 키 필요).</span>
       <span v-else-if="!draft" class="hint">모든 문장에 출처가 붙고, 확인되지 않은 문장은 "미검증"으로 표시돼요.</span>
     </div>
-    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <p v-if="error || jobError" class="error" role="alert">{{ error || jobError }}</p>
+    <p v-if="status" class="hint" role="status">{{ status }}</p>
 
     <template v-if="draft">
       <p class="hint" role="status">

@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from secrets import token_hex
 from tempfile import TemporaryDirectory
+from time import sleep
 
 from argon2 import PasswordHasher
 
@@ -17,6 +18,9 @@ _data = TemporaryDirectory(prefix="open-attendee-browser-")
 
 
 def _answer(prompt: str) -> str:
+    if "5~10개 항목으로 요약하세요" in prompt:
+        sleep(0.5)
+        return json.dumps({"bullets": [{"text": _RECORD, "sources": ["S1"]}]})
     if "뒷받침되면" in prompt:
         return json.dumps(
             {
@@ -33,6 +37,7 @@ def _answer(prompt: str) -> str:
     section = re.search(r'^- id="([^"]+)"', prompt, re.MULTILINE)
     if section is None:
         raise ValueError("예상하지 못한 브라우저 테스트용 프롬프트")
+    sleep(0.5)
     return json.dumps(
         {
             "sections": [

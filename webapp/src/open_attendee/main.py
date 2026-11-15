@@ -7,10 +7,12 @@ import logging
 import os
 import pkgutil
 import shutil
+from asyncio import to_thread
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Event, Thread
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, Request
@@ -25,6 +27,8 @@ from open_attendee.auth import Auth, AuthMiddleware, LoginRateLimiter
 from open_attendee.config import Settings
 from open_attendee.db import init_db, make_engine
 from open_attendee.errors import ConsentRequired, NotFound, UploadRejected, ValidationFailed
+from open_attendee.jobs import worker_loop
+from open_attendee.llm import build_gateway
 from open_attendee.logging_redact import install_log_redaction
 from open_attendee.spa import mount_spa
 from open_attendee.storage import LocalBlobStore, StorageFull
@@ -117,9 +121,23 @@ def create_app(
         init_db(engine)
         app.state.engine = engine
         app.state.blobs = LocalBlobStore(settings.data_dir / "blobs")
+        stop = Event()
+        worker = Thread(
+            target=worker_loop,
+            args=(
+                engine,
+                lambda: getattr(app.state, "llm_gateway", None) or build_gateway(settings),
+                stop,
+            ),
+            name="open-attendee-jobs",
+            daemon=True,
+        )
+        worker.start()
         try:
             yield
         finally:
+            stop.set()
+            await to_thread(worker.join, 5)
             engine.dispose()
 
     # 인증 전에 API 구조가 드러나지 않게 문서 화면은 끈다.
