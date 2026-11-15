@@ -19,7 +19,7 @@ All commit messages must strictly follow this format:
 - **Gitmoji**: Must use one of the exactly specified emojis (see mapping below).
 - **Type**: Must be lowercase, chosen from the mapping below.
 - **Domain**: Must be enclosed in parentheses `()`. Identify the primary component or domain affected (e.g., `(nfs)`, `(open-webui)`). Use lowercase and kebab-case. 
-- **Title**: A concise summary of the change in imperative mood. Must start with a lowercase letter directly after the colon and space.
+- **Title**: A concise summary of the change in imperative mood. Must start directly after the colon and space with a lowercase English letter or a Korean word.
 - **Description**: (Optional) Use this to explain "why" the change was made or provide further context.
 
 ### Skill-File Changes
@@ -110,8 +110,9 @@ This renders as `🤖 ci(deps): bump <package> from X to Y` for production depen
 
 ## 5. Strict Constraints
 - **Agent Autonomy**: You MUST NOT arbitrarily execute commit or push commands before the user approves. All execution must wait for explicit user consent.
-- **Language**: The commit message and any detailed explanations of changes MUST be in English only. Do NOT use Korean.
+- **Language**: The commit title and description may be written in Korean or English. Keep the gitmoji, type and scope in their English form. Do not mix languages inside one title.
 - **Privacy & Security**: NEVER include local paths, sensitive environment variables, or other local/sensitive information in the commit messages or detailed descriptions.
+- **Signing and PRs**: Kiro Crew cannot use GPG signing, because the agent process cannot read the signing keyring. Commits made by Kiro Crew Bots MUST reach the remote only through a pull request from a feature branch. Never push them to a protected branch such as `main`.
 
 ---
 

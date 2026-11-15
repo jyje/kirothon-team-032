@@ -33,3 +33,14 @@ test('requires a kebab-case scope and lowercase title', () => {
   assert.equal(validateCommitMessage('✨ feat(MyDomain): add a feature').valid, false);
   assert.equal(validateCommitMessage('✨ feat(my-domain): Add a feature').valid, false);
 });
+
+test('accepts a Korean title', () => {
+  assert.deepEqual(validateCommitMessage('✨ feat(my-domain): 사용자 기능 추가'), { valid: true });
+});
+
+test('accepts a skills/<name> scope but not deeper or malformed ones', () => {
+  assert.deepEqual(validateCommitMessage('✨ feat(skills/git-commit-helper): add a rule'), { valid: true });
+  assert.equal(validateCommitMessage('✨ feat(a/b/c): add a rule').valid, false);
+  assert.equal(validateCommitMessage('✨ feat(skills/): add a rule').valid, false);
+  assert.equal(validateCommitMessage('✨ feat(Skills/x): add a rule').valid, false);
+});
