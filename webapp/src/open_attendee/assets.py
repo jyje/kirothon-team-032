@@ -243,6 +243,7 @@ class AssetService:
             or (thumbnail and asset.kind is not AssetKind.PHOTO)
         ):
             raise NotFound("파일을 찾을 수 없어요.")
+        self.gate.require_consent(asset)
         key = asset.blob_key + THUMB_SUFFIX if thumbnail else asset.blob_key
         try:
             return OpenedBlob(asset, self.blobs.open(key))

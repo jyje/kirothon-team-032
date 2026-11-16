@@ -13,7 +13,16 @@ from pydantic import BaseModel
 from sqlmodel import Session, col, select, update
 
 from open_attendee.errors import ConsentRequired, NotFound, ValidationFailed
-from open_attendee.models import Asset, AssetKind, ConsentRecord, EventSession, utcnow
+from open_attendee.models import (
+    Asset,
+    AssetKind,
+    ConsentRecord,
+    EventSession,
+    Job,
+    JobKind,
+    JobStatus,
+    utcnow,
+)
 
 __all__ = ["METHOD_MAX", "ConsentForm", "ConsentGate", "ConsentRequired", "is_valid_consent"]
 
@@ -87,6 +96,25 @@ class ConsentGate:
             update(ConsentRecord)
             .where(col(ConsentRecord.id) == consent_id, col(ConsentRecord.revoked_at).is_(None))
             .values(revoked_at=utcnow())
+        )
+        affected_audio = select(Asset.id).where(
+            Asset.session_id == record.session_id, Asset.consent_id == consent_id
+        )
+        self.db.exec(
+            update(Job)
+            .where(
+                Job.owner_id == owner_id,
+                Job.session_id == record.session_id,
+                Job.kind == JobKind.TRANSCRIBE,
+                col(Job.status).in_((JobStatus.QUEUED, JobStatus.RUNNING)),
+                col(Job.payload)["asset_id"].as_string().in_(affected_audio),
+            )
+            .values(
+                status=JobStatus.FAILED,
+                last_error="consent_required",
+                claimed_by=None,
+                claimed_at=None,
+            )
         )
         self.db.commit()
         self.db.refresh(record)

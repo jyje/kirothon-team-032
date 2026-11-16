@@ -13,7 +13,7 @@ from open_attendee import jobs
 from open_attendee.assets import AssetService
 from open_attendee.config import Settings
 from open_attendee.consent import ConsentForm, ConsentGate
-from open_attendee.errors import NotFound
+from open_attendee.errors import ConsentRequired, NotFound
 from open_attendee.models import Asset, AssetKind, AssetStatus, Job, JobKind, JobStatus, utcnow
 from open_attendee.pipeline.sources import build_source_map
 from open_attendee.sessions import SessionService
@@ -219,3 +219,42 @@ def test_empty_transcript_keeps_original(
     assert jobs.claim_next(engine, (JobKind.DELETE_AUDIO,)) is None
     with blobs.open(original) as audio:
         assert audio.read() == WAV
+
+
+@pytest.mark.parametrize("claimed", [False, True], ids=["queued", "running"])
+def test_revocation_blocks_download_and_releases_transcription_claim(
+    engine: Engine,
+    db: Session,
+    sessions: SessionService,
+    blobs: LocalBlobStore,
+    settings: Settings,
+    claimed: bool,
+) -> None:
+    event_id, consent_id, audio_id = _audio(db, sessions, blobs, settings)
+    service = AssetService(db, blobs, settings)
+    solo = service.store_upload(
+        OWNER,
+        event_id,
+        AssetKind.VOICE_MEMO,
+        "solo.wav",
+        BytesIO(WAV),
+        solo_voice=True,
+    )
+    with service.open_file(OWNER, event_id, audio_id).stream as raw:
+        assert raw.read() == WAV
+    job, _ = jobs.enqueue(db, event_id, OWNER, JobKind.TRANSCRIBE, {"asset_id": audio_id})
+    if claimed:
+        assert jobs.claim_next(engine, (JobKind.TRANSCRIBE,)).id == job.id
+
+    ConsentGate(db).revoke(OWNER, consent_id)
+    stopped = jobs.get_job(db, job.id, OWNER)
+    assert stopped.status is JobStatus.FAILED
+    assert stopped.last_error == "consent_required"
+    assert stopped.claimed_at is None and stopped.claimed_by is None
+    assert jobs.claim_next(engine, (JobKind.TRANSCRIBE,)) is None
+    with pytest.raises(ConsentRequired):
+        service.open_file(OWNER, event_id, audio_id)
+    with service.open_file(OWNER, event_id, solo.id).stream as raw:
+        assert raw.read() == WAV
+    with blobs.open(db.get(Asset, audio_id).blob_key) as raw:
+        assert raw.read() == WAV
