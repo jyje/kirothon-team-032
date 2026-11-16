@@ -10,7 +10,7 @@ from datetime import date
 from typing import Final
 
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select, update
 
 from open_attendee.errors import ConsentRequired, NotFound, ValidationFailed
 from open_attendee.models import Asset, AssetKind, ConsentRecord, EventSession, utcnow
@@ -67,17 +67,29 @@ class ConsentGate:
         self.db.refresh(record)
         return record
 
+    def list_records(self, owner_id: str, session_id: str) -> list[ConsentRecord]:
+        self._owned_session(owner_id, session_id)
+        return list(
+            self.db.exec(
+                select(ConsentRecord)
+                .where(ConsentRecord.session_id == session_id)
+                .order_by(col(ConsentRecord.created_at).desc(), col(ConsentRecord.id).desc())
+            )
+        )
+
     def revoke(self, owner_id: str, consent_id: str) -> ConsentRecord:
         """철회 시각을 기록한다. 이미 철회된 기록은 처음 시각을 그대로 둔다."""
         record = self.db.get(ConsentRecord, consent_id)
         if record is None:
             raise NotFound("동의 기록을 찾을 수 없어요.")
         self._owned_session(owner_id, record.session_id)
-        if record.revoked_at is None:
-            record.revoked_at = utcnow()
-            self.db.add(record)
-            self.db.commit()
-            self.db.refresh(record)
+        self.db.exec(
+            update(ConsentRecord)
+            .where(col(ConsentRecord.id) == consent_id, col(ConsentRecord.revoked_at).is_(None))
+            .values(revoked_at=utcnow())
+        )
+        self.db.commit()
+        self.db.refresh(record)
         return record
 
     # ------------------------------------------------------------------ 판정

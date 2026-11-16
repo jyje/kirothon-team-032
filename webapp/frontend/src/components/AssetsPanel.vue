@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { api, ApiError } from '@/api'
 import type { Asset, AssetList, Block } from '@/types'
+import RecordingConsent from './RecordingConsent.vue'
 
 const props = defineProps<{ sessionId: string; blocks: Block[] }>()
 const emit = defineEmits<{ changed: [] }>()
@@ -143,6 +144,7 @@ defineExpose({ reload: load })
         <button class="btn btn-small" type="button" @click="remove(d)">지우기</button>
       </li>
     </ul>
+    <RecordingConsent :session-id="sessionId" />
   </section>
 </template>
 

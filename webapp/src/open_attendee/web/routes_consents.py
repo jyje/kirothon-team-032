@@ -34,6 +34,11 @@ def _body(record: ConsentRecord) -> dict[str, object]:
     }
 
 
+@router.get("/sessions/{session_id}/consents")
+def list_consents(session_id: str, owner: Owner, gate: Gate) -> dict[str, object]:
+    return {"items": [_body(record) for record in gate.list_records(owner, session_id)]}
+
+
 @router.post("/sessions/{session_id}/consents")
 def create_consent(
     session_id: str,
