@@ -7,12 +7,23 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from open_attendee import drafts
+from open_attendee.db import init_db
 from open_attendee.llm import LLMGateway
-from open_attendee.models import Asset, AssetKind, Draft, DraftStatus, MemoBlock
+from open_attendee.models import (
+    Asset,
+    AssetKind,
+    Draft,
+    DraftStatus,
+    MemoBlock,
+    Sentence,
+    SentenceOrigin,
+)
+from open_attendee.web.deps import get_gateway
 
 from .conftest import OWNER_PASSWORD
 
@@ -36,6 +47,18 @@ GEN = {
 }
 
 
+def _judgement(index: int, supported: bool, *, spot: bool = False) -> dict:
+    evidence = (
+        {"source": "S2", "quote": "스팟 비용 이야기"}
+        if spot
+        else {
+            "source": "S1",
+            "quote": "Karpenter 이야기",
+        }
+    )
+    return {"index": index, "supported": supported, "evidence": [evidence] if supported else []}
+
+
 def make_ask(support: dict[int, bool] | None, *, fail_support: bool = False):
     """초안 프롬프트에는 GEN을, 지지 판정 프롬프트에는 support 결과를 돌려주는 가짜."""
     calls: list[str] = []
@@ -46,7 +69,11 @@ def make_ask(support: dict[int, bool] | None, *, fail_support: bool = False):
             if fail_support:
                 return "형식 아님"
             return json.dumps(
-                {"results": [{"index": i, "supported": v} for i, v in (support or {}).items()]}
+                {
+                    "results": [
+                        _judgement(i, value, spot=i == 2) for i, value in (support or {}).items()
+                    ]
+                }
             )
         return json.dumps(GEN)
 
@@ -227,8 +254,6 @@ def test_export_only_after_approval_with_notice_marks_and_sources(api: TestClien
 
 
 def test_html_export_escapes_title_sentences_and_source_labels(api: TestClient) -> None:
-    from sqlmodel import select
-
     from open_attendee.models import Fact
 
     sid = _session(api)
@@ -270,7 +295,9 @@ def test_edit_keeps_sources_and_is_blocked_after_approval(api: TestClient) -> No
     )
     edited = _sentences(res.json())[0]
     assert (edited["text"], edited["origin"]) == ("고친 문장", "ai_edited")
-    assert edited["sources"] and edited["verify_note"] == "사용자가 수정함"
+    assert edited["sources"] == sentence["sources"]
+    assert edited["verify_status"] == "verified"
+    assert edited["verify_note"] is None
     for s in _sentences(draft):
         if s["verify_status"] == "unverified":
             api.delete(f"/api/drafts/{draft['id']}/sentences/{s['id']}")
@@ -330,7 +357,7 @@ LINKEDIN_GEN = {
 
 def _linkedin_ask(prompt: str) -> str:
     if "뒷받침되면" in prompt:
-        return json.dumps({"results": [{"index": i, "supported": True} for i in range(20)]})
+        return json.dumps({"results": [_judgement(i, True) for i in range(20)]})
     return json.dumps(LINKEDIN_GEN)
 
 
@@ -374,3 +401,116 @@ def test_unknown_template_is_422_and_default_is_blog(api: TestClient) -> None:
     assert (bad.status_code, bad.json()["error"]["code"]) == (422, "unknown_template")
     default = api.post(f"/api/sessions/{sid}/draft")  # 본문 없이도 블로그
     assert [s["id"] for s in default.json()["draft"]["sections"]] == ["intro", "body", "wrap"]
+
+
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        [],
+        [{"source": "S1", "quote": "비용 40% 절감"}],
+        [{"source": "S2", "quote": "스팟 비용 이야기"}],
+        [{"source": "S1", "quote": " "}],
+    ],
+    ids=["missing", "fabricated", "uncited", "blank"],
+)
+def test_support_requires_a_real_quote_from_a_cited_source(
+    api: TestClient, evidence: list[dict[str, str]]
+) -> None:
+    assert isinstance(api.app, FastAPI)
+    sid = _session(api)
+
+    def ask(prompt: str) -> str:
+        if "뒷받침되면" in prompt:
+            return json.dumps({"results": [{"index": 0, "supported": True, "evidence": evidence}]})
+        return json.dumps(GEN)
+
+    api.app.state.llm_gateway = LLMGateway(ask)
+    created = api.post(f"/api/sessions/{sid}/draft")
+    assert created.status_code == 200
+    draft = created.json()["draft"]
+    original = _sentences(draft)[0]
+    assert original["verify_status"] == "unverified"
+
+    edited = api.patch(
+        f"/api/drafts/{draft['id']}/sentences/{original['id']}", json={"text": "수정한 문장"}
+    )
+    assert edited.status_code == 200
+    assert _sentences(edited.json())[0]["verify_status"] == "unverified"
+
+
+@pytest.mark.parametrize("provider", ["unsupported", "failed", "unconfigured", "changed_source"])
+def test_edit_does_not_inherit_verification(api: TestClient, provider: str) -> None:
+    assert isinstance(api.app, FastAPI)
+    sid = _session(api)
+    ask = make_ask({0: True, 1: True, 2: True})
+    api.app.state.llm_gateway = LLMGateway(ask)
+    draft = api.post(f"/api/sessions/{sid}/draft").json()["draft"]
+    sentence = _sentences(draft)[0]
+    assert sentence["verify_status"] == "verified"
+    path = f"/api/drafts/{draft['id']}/sentences/{sentence['id']}"
+
+    if provider == "changed_source":
+        with Session(api.app.state.engine) as db:
+            block = db.exec(
+                select(MemoBlock).where(MemoBlock.session_id == sid, MemoBlock.position == 0)
+            ).one()
+            block.revision += 1
+            db.add(block)
+            db.commit()
+    check = make_ask({0: provider == "changed_source"}, fail_support=provider == "failed")
+    api.app.dependency_overrides[get_gateway] = lambda: (
+        None if provider == "unconfigured" else LLMGateway(check)
+    )
+    reply = api.patch(path, json={"text": "비용이 줄었다는 새 주장"})
+    assert reply.status_code == 200
+    edited = _sentences(reply.json())[0]
+    assert edited["verify_status"] == "unverified"
+    assert edited["sources"] == sentence["sources"]
+    if provider in ("unsupported", "failed"):
+        assert "Karpenter 이야기" in check.calls[0]  # type: ignore[attr-defined]
+        assert "스팟 비용 이야기" not in check.calls[0]  # type: ignore[attr-defined]
+    else:
+        assert not check.calls  # type: ignore[attr-defined]
+    refused = api.post(f"/api/drafts/{draft['id']}/approve")
+    assert refused.status_code == 409
+    assert sentence["id"] in refused.json()["error"]["sentence_ids"]
+
+
+def test_legacy_review_edits_lose_stale_verification(api: TestClient) -> None:
+    assert isinstance(api.app, FastAPI)
+    draft = _draft(api)
+    sentence = _sentences(draft)[0]
+    engine = api.app.state.engine
+    with Session(engine) as db:
+        legacy = db.get(Sentence, sentence["id"])
+        assert legacy is not None
+        legacy.origin = SentenceOrigin.AI_EDITED
+        legacy.verify_note = "사용자가 수정함"
+        db.commit()
+
+    init_db(engine)
+    refused = api.post(f"/api/drafts/{draft['id']}/approve")
+    assert refused.status_code == 409
+    assert sentence["id"] in refused.json()["error"]["sentence_ids"]
+
+
+def test_edit_does_not_overwrite_a_draft_approved_during_verification(api: TestClient) -> None:
+    assert isinstance(api.app, FastAPI)
+    draft = _draft(api)
+    sentence = _sentences(draft)[0]
+    for other in _sentences(draft):
+        if other["verify_status"] == "unverified":
+            api.delete(f"/api/drafts/{draft['id']}/sentences/{other['id']}")
+
+    def approve_during_check(_prompt: str) -> str:
+        assert api.post(f"/api/drafts/{draft['id']}/approve").status_code == 200
+        return json.dumps({"results": [_judgement(0, True)]})
+
+    api.app.state.llm_gateway = LLMGateway(approve_during_check)
+    reply = api.patch(
+        f"/api/drafts/{draft['id']}/sentences/{sentence['id']}", json={"text": "늦은 변경"}
+    )
+    assert reply.status_code == 409
+    exported = api.get(f"/api/drafts/{draft['id']}/export.md")
+    assert sentence["text"] in exported.text
+    assert "늦은 변경" not in exported.text
