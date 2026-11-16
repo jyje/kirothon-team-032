@@ -20,6 +20,12 @@ const insightText = ref<Record<string, string>>({})
 
 const kindLabel: Record<string, string> = { memo: '메모', doc: '발표자료', reference: '참고자료', photo: '사진', transcript: '녹음' }
 const approved = computed(() => draft.value?.status === 'approved')
+const reviewElapsed = computed(() => {
+  const seconds = draft.value?.review_seconds
+  if (typeof seconds !== 'number') return null
+  const minutes = Math.floor(seconds / 60)
+  return minutes > 0 ? `${minutes}분 ${seconds % 60}초` : `${seconds}초`
+})
 
 function fail(e: unknown, fallback: string) {
   error.value = e instanceof ApiError ? e.message : fallback
@@ -127,6 +133,7 @@ onMounted(async () => {
         <strong>{{ approved ? '승인됨' : '검토 중' }}</strong>
         <template v-if="draft.template_name"> · 템플릿 {{ draft.template_name }}</template>
         <template v-if="!approved"> · 미검증 문장 {{ draft.unverified_count }}개</template>
+        <template v-if="approved && reviewElapsed"> · 마지막 기록부터 승인까지 {{ reviewElapsed }}</template>
         · AI가 만든 초안이에요. 출처를 확인하며 검토해 주세요.
       </p>
 

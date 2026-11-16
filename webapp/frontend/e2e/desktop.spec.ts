@@ -124,8 +124,15 @@ test('템플릿을 저장하고 검토한 초안을 HTML과 Markdown으로 내�
   }
   await page.getByRole('button', { name: '의견으로 유지', exact: true }).click()
   await expect(approve).toBeEnabled()
+  const approval = page.waitForResponse(response => response.url().endsWith('/approve'))
   page.once('dialog', dialog => dialog.accept())
   await approve.click()
+  const { review_seconds: seconds } = await (await approval).json()
+  expect(Number.isInteger(seconds)).toBe(true)
+  const elapsed = page.getByText(/마지막 기록부터 승인까지/)
+  await expect(elapsed).toContainText(`${seconds % 60}초`)
+  await page.reload()
+  await expect(elapsed).toContainText(`${seconds % 60}초`)
 
   const htmlLink = page.getByRole('link', { name: 'HTML 내려받기', exact: true })
   const [html] = await Promise.all([page.waitForEvent('download'), htmlLink.click()])
