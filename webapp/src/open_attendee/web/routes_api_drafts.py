@@ -42,6 +42,7 @@ def _body(db: Db, draft: Any, llm_configured: bool | None = None) -> dict[str, A
         "id": draft.id,
         "status": draft.status.value,
         "approved_at": draft.approved_at.isoformat() if draft.approved_at else None,
+        "review_seconds": draft.review_seconds,
         "unverified_count": view.unverified_count,
         "template_name": view.template_name,
         "sections": view.sections,
