@@ -196,6 +196,8 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 
 로컬 전사기가 설정된 환경에서는 **자료**에서 저장한 음성의 전사를 요청하고 시간 구간을 볼 수 있습니다. 전사 구간은 요약과 초안의 출처로 사용할 수 있습니다. [#70](https://github.com/jyje/open-attendee/issues/70)
 
+자료 화면에서 **전사 후 음성 원본 보관**을 행사별로 선택합니다. 기본값은 삭제이며, 전사 구간이 저장된 뒤 원본 삭제를 별도 작업으로 실행합니다. [#71](https://github.com/jyje/open-attendee/issues/71)
+
 웹앱의 요약과 초안은 SQLite 작업 큐에서 실행됩니다. 화면은 서버 전송 이벤트(SSE)로 상태를 갱신하고, 새로고침하면 대기 중이거나 실행 중인 작업을 다시 연결합니다. 워커는 실패한 작업을 최대 세 번까지 시도하며, 중단된 작업은 임대가 만료되면 회수합니다. [#47](https://github.com/jyje/open-attendee/issues/47)
 
 승인한 초안은 HTML 파일로도 내려받을 수 있습니다. AI 생성 표시, 미검증 의견 표시, 출처가 포함되며 인터넷 연결 없이 브라우저에서 열립니다. [#41](https://github.com/jyje/open-attendee/issues/41)
@@ -215,7 +217,6 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 
 **로드맵 (아직 반영하지 않음)**
 - 수정한 문장의 재검증, 더 엄격한 지지 판정.
-- 전사 후 원본 삭제 및 행사별 보관 설정. [#71](https://github.com/jyje/open-attendee/issues/71)
 - 사진 얼굴 흐림.
 - 실제 기기의 장시간 마이크 녹음과 중단 복구 검증. [#68](https://github.com/jyje/open-attendee/issues/68)
 - 녹음 동의 철회 전 자료의 접근 및 보관 범위. [#65](https://github.com/jyje/open-attendee/issues/65)
