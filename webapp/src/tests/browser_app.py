@@ -62,6 +62,8 @@ app = create_app(
         ),
         session_secret=Secret(token_hex(32)),
         data_dir=Path(_data.name),
+        feature_recording=True,
+        transcriber="fake",
     ),
     provider_factory=lambda: None,
 )
