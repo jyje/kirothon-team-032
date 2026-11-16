@@ -103,14 +103,14 @@ def create_draft(
 
 @router.patch("/drafts/{draft_id}/sentences/{sentence_id}", response_model=None)
 def patch_sentence(
-    draft_id: str, sentence_id: str, body: SentencePatch, owner: Owner, db: Db
+    draft_id: str, sentence_id: str, body: SentencePatch, owner: Owner, db: Db, gateway: Gateway
 ) -> JSONResponse | dict[str, Any]:
     draft = svc.get_draft(db, owner, draft_id)
     try:
         if body.action == "keep_as_opinion":
             svc.keep_as_opinion(db, draft, sentence_id)
         elif body.text is not None:
-            svc.edit_sentence(db, draft, sentence_id, body.text)
+            svc.edit_sentence(db, draft, sentence_id, body.text, gateway)
         else:
             return _error(422, "nothing_to_do", "text나 action 중 하나가 필요해요.")
     except svc.ReviewConflict as exc:

@@ -124,6 +124,24 @@ test('템플릿을 저장하고 검토한 초안을 HTML과 Markdown으로 내�
   }
   await page.getByRole('button', { name: '의견으로 유지', exact: true }).click()
   await expect(approve).toBeEnabled()
+
+  const draftPanel = page.getByRole('region', { name: '초안', exact: true })
+  const verified = draftPanel.getByRole('listitem').filter({ hasText: record }).first()
+  await verified.getByRole('button', { name: '수정', exact: true }).click()
+  const editorField = draftPanel.getByRole('textbox', { name: '수정한 문장', exact: true })
+  const unsupported = '배포 비용을 절반으로 줄였어요.'
+  await editorField.fill(unsupported)
+  await draftPanel.getByRole('button', { name: '저장', exact: true }).click()
+  const modified = draftPanel.getByRole('listitem').filter({ hasText: unsupported }).first()
+  await expect(modified).toContainText('미검증')
+  await expect(modified.getByRole('list', { name: '출처' })).toContainText('메모 1번째 블록')
+  await expect(approve).toBeDisabled()
+  await modified.getByRole('button', { name: '수정', exact: true }).click()
+  await editorField.fill(record)
+  await draftPanel.getByRole('button', { name: '저장', exact: true }).click()
+  await expect(verified).toContainText('출처 확인됨')
+  await expect(approve).toBeEnabled()
+
   const approval = page.waitForResponse(response => response.url().endsWith('/approve'))
   page.once('dialog', dialog => dialog.accept())
   await approve.click()

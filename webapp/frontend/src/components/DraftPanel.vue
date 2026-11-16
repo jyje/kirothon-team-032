@@ -15,6 +15,7 @@ const error = ref('')
 const { busy, error: jobError, status, restore, submit } = useAiJob(props.sessionId, 'draft', loadResult)
 const notice = ref('')
 const editingId = ref('')
+const savingEdit = ref(false)
 const editText = ref('')
 const insightText = ref<Record<string, string>>({})
 
@@ -61,9 +62,11 @@ function create() {
 async function call(path: string, init: Parameters<typeof api>[1]) {
   error.value = ''
   try {
-    draft.value = (await api<Draft>(path, init)) as Draft
+    draft.value = await api<Draft>(path, init)
+    return true
   } catch (e) {
     fail(e, '요청에 실패했어요.')
+    return false
   }
 }
 
@@ -76,8 +79,15 @@ function startEdit(s: DraftSentence) {
   editText.value = s.text
 }
 async function saveEdit(s: DraftSentence) {
-  await call(sentenceUrl(s), { method: 'PATCH', json: { text: editText.value } })
-  editingId.value = ''
+  if (savingEdit.value) return
+  savingEdit.value = true
+  try {
+    if (await call(sentenceUrl(s), { method: 'PATCH', json: { text: editText.value } })) {
+      editingId.value = ''
+    }
+  } finally {
+    savingEdit.value = false
+  }
 }
 
 async function addInsight(sectionId: string) {
@@ -151,10 +161,11 @@ onMounted(async () => {
               <span v-if="s.verify_note && s.verify_status === 'unverified'" class="hint-dark">{{ s.verify_note }}</span>
             </div>
             <template v-if="editingId === s.id">
-              <textarea v-model="editText" rows="2" maxlength="1000" />
+              <p v-if="savingEdit" role="status">수정한 문장의 근거를 확인하는 중이에요.</p>
+              <textarea v-model="editText" aria-label="수정한 문장" rows="2" maxlength="1000" :disabled="savingEdit" />
               <div class="row">
-                <button class="btn btn-small" type="button" @click="saveEdit(s)">저장</button>
-                <button class="btn btn-small" type="button" @click="editingId = ''">취소</button>
+                <button class="btn btn-small" type="button" :disabled="savingEdit" @click="saveEdit(s)">저장</button>
+                <button class="btn btn-small" type="button" :disabled="savingEdit" @click="editingId = ''">취소</button>
               </div>
             </template>
             <template v-else>
@@ -182,7 +193,7 @@ onMounted(async () => {
       </article>
 
       <div class="actions">
-        <button v-if="!approved" class="btn btn-primary" type="button" :disabled="draft.unverified_count > 0" @click="approve">
+        <button v-if="!approved" class="btn btn-primary" type="button" :disabled="savingEdit || draft.unverified_count > 0" @click="approve">
           승인하기{{ draft.unverified_count ? ` (미검증 ${draft.unverified_count}개 남음)` : '' }}
         </button>
         <template v-else>

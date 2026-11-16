@@ -27,6 +27,8 @@ def _answer(prompt: str) -> str:
             return json.dumps({"bullets": [{"text": "슬라이드 검증 문장", "sources": ["S2"]}]})
         return json.dumps({"bullets": [{"text": _RECORD, "sources": ["S1"]}]})
     if "뒷받침되면" in prompt:
+        if "배포 비용을 절반으로 줄였어요." in prompt:
+            return json.dumps({"results": [{"index": 0, "supported": True, "evidence": []}]})
         return json.dumps(
             {
                 "results": [
