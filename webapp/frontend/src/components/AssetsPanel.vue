@@ -7,7 +7,7 @@ import PhotoFaceReview from './PhotoFaceReview.vue'
 import RecordingConsent from './RecordingConsent.vue'
 
 const props = defineProps<{ sessionId: string; blocks: Block[]; active: boolean }>()
-const emit = defineEmits<{ changed: [] }>()
+const emit = defineEmits<{ changed: []; consentRevoked: [] }>()
 const retainAudio = defineModel<boolean>('retainAudio', { required: true })
 const savingRetention = ref(false)
 const retentionNotice = ref('')
@@ -63,6 +63,11 @@ function updateReviewedPhoto(photo: Asset) {
   if (!current) return
   Object.assign(current, { faces_blurred: photo.faces_blurred, face_check_confirmed: photo.face_check_confirmed })
   photoVersions.value[photo.id] = (photoVersions.value[photo.id] ?? 0) + 1
+}
+
+function applyRevocation() {
+  emit('consentRevoked')
+  void load().catch(() => { error.value = '녹음 자료 상태를 다시 확인하지 못했어요.' })
 }
 
 function addRecording(asset: Asset) {
@@ -193,6 +198,7 @@ defineExpose({ reload: load })
       :active="active"
       :max-recording-bytes="maxRecordingBytes"
       @recorded="addRecording"
+      @revoked="applyRevocation"
     />
     <div class="retention">
       <label class="retain-control">
@@ -205,12 +211,13 @@ defineExpose({ reload: load })
     <ul v-if="recordings.length" class="docs" aria-label="저장된 행사 녹음">
       <li v-for="recording in recordings" :key="recording.id">
         <span class="name">{{ recording.display_name }}</span>
-        <span v-if="recording.status === 'original_deleted'" class="hint">원본 삭제됨</span>
+        <span v-if="recording.consent_blocked" class="hint">녹음 동의가 철회됐어요</span>
+        <span v-else-if="recording.status === 'original_deleted'" class="hint">원본 삭제됨</span>
         <span v-else-if="recording.status === 'original_delete_pending'" class="hint" role="status">원본 삭제 대기 중</span>
         <a v-else class="btn btn-small" :href="`${base}/${recording.id}/file`" download>녹음 내려받기</a>
         <button class="btn btn-small" type="button" @click="remove(recording)">지우기</button>
         <AudioTranscript
-          v-if="transcriptionEnabled || ['ready', 'original_deleted', 'original_delete_pending'].includes(recording.status)"
+          v-if="!recording.consent_blocked && (transcriptionEnabled || ['ready', 'original_deleted', 'original_delete_pending'].includes(recording.status))"
           class="transcript"
           :session-id="sessionId"
           :asset="recording"

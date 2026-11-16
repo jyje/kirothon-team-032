@@ -10,6 +10,7 @@ const base = computed(() => `/api/sessions/${props.sessionId}/draft`)
 const templates = ref<TemplateInfo[]>([])
 const templateId = ref('builtin-blog')
 const draft = ref<Draft | null>(null)
+const consentBlocked = ref(false)
 const llmConfigured = ref<boolean | null>(null)
 const error = ref('')
 const { busy, error: jobError, status, restore, submit } = useAiJob(props.sessionId, 'draft', loadResult)
@@ -36,6 +37,7 @@ async function load() {
   try {
     const res = await api<DraftResponse>(base.value)
     draft.value = res.draft
+    consentBlocked.value = res.consent_blocked === true
     llmConfigured.value = res.llm_configured
     templates.value = (await api<{ templates: TemplateInfo[] }>('/api/templates')).templates
   } catch (cause) {
@@ -48,6 +50,7 @@ async function loadResult(job: AiJob, restored: boolean) {
     restored ? base.value : `${base.value}?result_id=${job.result_id}`,
   )
   draft.value = res.draft
+  consentBlocked.value = res.consent_blocked === true
   llmConfigured.value = res.llm_configured
   editingId.value = ''
   insightText.value = {}
@@ -106,6 +109,7 @@ async function copyMarkdown() {
   notice.value = ''
   try {
     const res = await fetch(`/api/drafts/${draft.value!.id}/export.md`, { credentials: 'same-origin' })
+    if (!res.ok) throw new Error('내보내기 실패')
     await navigator.clipboard.writeText(await res.text())
     notice.value = '마크다운을 복사했어요.'
   } catch {
@@ -122,6 +126,7 @@ onMounted(async () => {
 <template>
   <section class="panel" aria-label="초안">
     <h2>초안</h2>
+    <p v-if="consentBlocked" class="hint" role="status">녹음 동의가 철회돼 이전 초안을 열 수 없어요. 남은 자료로 새 초안을 만들 수 있어요.</p>
     <div class="actions">
       <label v-if="templates.length" class="picker">
         <span id="draft-template-label">템플릿</span>
