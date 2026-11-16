@@ -7,13 +7,15 @@ from collections.abc import Iterator
 from typing import Annotated, BinaryIO
 from urllib.parse import quote
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel, Field
 
 from open_attendee import transcript_jobs
-from open_attendee.assets import COUNT_LIMITS, SIZE_LIMITS
+from open_attendee.assets import COUNT_LIMITS, SIZE_LIMITS, PhotoRevisionChanged
 from open_attendee.errors import ValidationFailed
 from open_attendee.models import Asset, AssetKind
+from open_attendee.processors.face_detection import MAX_REGIONS, PhotoRegion
 from open_attendee.web.deps import AppSettings, Assets, Db, Owner, Sessions
 
 router = APIRouter(prefix="/api")
@@ -39,6 +41,8 @@ def _asset_body(asset: Asset) -> dict[str, object]:
         "caption": asset.caption,
         "linked_block_id": asset.linked_block_id,
         "link_manual": asset.link_manual,
+        "faces_blurred": asset.faces_blurred,
+        "face_check_confirmed": asset.face_check_confirmed,
     }
 
 
@@ -108,6 +112,37 @@ def upload_asset(
     return _asset_body(created)
 
 
+class PhotoReview(BaseModel):
+    revision: str = Field(pattern=r"^[0-9a-f]{64}$")
+    regions: list[PhotoRegion] = Field(max_length=MAX_REGIONS)
+
+
+@router.get("/sessions/{session_id}/assets/{asset_id}/face-review")
+def photo_candidates(
+    session_id: str,
+    asset_id: str,
+    owner: Owner,
+    assets: Assets,
+) -> dict[str, object]:
+    return assets.review_photo(owner, session_id, asset_id)
+
+
+@router.put("/sessions/{session_id}/assets/{asset_id}/face-review")
+def save_photo_review(
+    session_id: str,
+    asset_id: str,
+    body: PhotoReview,
+    owner: Owner,
+    assets: Assets,
+) -> dict[str, object]:
+    try:
+        return _asset_body(
+            assets.save_photo_review(owner, session_id, asset_id, body.revision, body.regions)
+        )
+    except PhotoRevisionChanged as exc:
+        raise HTTPException(409, "사진이 변경됐어요. 검토를 다시 열어 주세요.") from exc
+
+
 @router.get("/sessions/{session_id}/assets/{asset_id}/transcript")
 def read_transcript(
     session_id: str, asset_id: str, owner: Owner, sessions: Sessions, db: Db
@@ -169,7 +204,7 @@ def _file_response(
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": (
             "private, no-store"
-            if asset.kind in transcript_jobs.AUDIO_KINDS
+            if asset.kind is AssetKind.PHOTO or asset.kind in transcript_jobs.AUDIO_KINDS
             else "private, max-age=3600"
         ),
     }

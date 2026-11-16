@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { api, ApiError } from '@/api'
 import type { Asset, AssetList, Block, SessionDetail } from '@/types'
 import AudioTranscript from './AudioTranscript.vue'
+import PhotoFaceReview from './PhotoFaceReview.vue'
 import RecordingConsent from './RecordingConsent.vue'
 
 const props = defineProps<{ sessionId: string; blocks: Block[]; active: boolean }>()
@@ -15,6 +16,7 @@ const assets = ref<Asset[]>([])
 const limits = ref<Record<string, number>>({})
 const error = ref('')
 const busy = ref(false)
+const photoVersions = ref<Record<string, number>>({})
 const transcriptionEnabled = ref(false)
 const maxRecordingBytes = ref<number | null>(null)
 
@@ -54,6 +56,13 @@ async function saveRetention(event: Event) {
   } finally {
     savingRetention.value = false
   }
+}
+
+function updateReviewedPhoto(photo: Asset) {
+  const current = assets.value.find(asset => asset.id === photo.id)
+  if (!current) return
+  Object.assign(current, { faces_blurred: photo.faces_blurred, face_check_confirmed: photo.face_check_confirmed })
+  photoVersions.value[photo.id] = (photoVersions.value[photo.id] ?? 0) + 1
 }
 
 function addRecording(asset: Asset) {
@@ -136,7 +145,8 @@ defineExpose({ reload: load })
 
     <ul v-if="photos.length" class="photos">
       <li v-for="p in photos" :key="p.id" class="photo">
-        <img :src="`${base}/${p.id}/thumbnail`" :alt="p.caption || p.display_name" loading="lazy" />
+        <img :src="`${base}/${p.id}/thumbnail?v=${photoVersions[p.id] ?? 0}`" :alt="p.caption || p.display_name" loading="lazy" />
+        <PhotoFaceReview :path="`${base}/${p.id}`" :photo="p" @saved="updateReviewedPhoto" />
         <input v-model="p.caption" class="caption" maxlength="2000" placeholder="설명 (선택)" @change="saveCaption(p)" />
         <select class="link" :value="p.linked_block_id ?? ''" @change="onLink(p, $event)">
           <option value="">연결 안 함</option>
@@ -231,6 +241,7 @@ h2 { margin: 0; font-family: var(--font-hand); font-weight: 400; letter-spacing:
 .error { margin: 0; background: var(--color-purple-dark); border: var(--border); border-color: var(--color-kiro); border-radius: var(--radius-bubble); padding: var(--space-3) var(--space-4); }
 .photos { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 .photo { display: grid; gap: var(--space-2); padding: var(--space-3); background: var(--color-white); color: var(--color-ink); border: var(--border); border-radius: var(--radius-bubble); }
+.photo:has(details[open]) { grid-column: 1 / -1; }
 .photo img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: calc(var(--radius-bubble) - 6px); background: var(--color-lavender); }
 .caption, .link { font: 500 var(--fs-btn-seg) var(--font-body); padding: var(--space-2) var(--space-3); border: var(--border); border-radius: var(--radius-pill); background: var(--color-white); color: var(--color-ink); min-width: 0; }
 .foot { display: flex; justify-content: space-between; align-items: center; }
