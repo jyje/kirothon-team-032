@@ -4,6 +4,7 @@
 
 - 설치 환경: **웹앱**만 지원해요.
 - 작업 공간: 사이드바에서 내 행사와 필기·자료·AI 요약·초안으로 이동해요. 작은 화면에서는 메뉴를 접을 수 있어요. [#35](https://github.com/jyje/open-attendee/issues/35)
+- 녹음이 켜진 환경에서는 자료 화면에서 행사 동의를 선택해 브라우저로 녹음하고 저장할 수 있어요. [#67](https://github.com/jyje/open-attendee/issues/67)
 - 자료 화면에서 행사별 녹음 동의를 저장하고 철회할 수 있어요. [#64](https://github.com/jyje/open-attendee/issues/64)
 - 자료 업로드: 키보드로 사진·발표자료·참고자료의 파일 선택을 열 수 있어요. [#36](https://github.com/jyje/open-attendee/issues/36)
 - 승인한 초안에서 마지막 필기 수정이나 자료 추가부터 승인까지의 경과 시간을 확인할 수 있어요. [#61](https://github.com/jyje/open-attendee/issues/61)
@@ -22,6 +23,7 @@
 |---|---|---|
 | 행사 정리 시간 비교 | 예정 | 같은 자료와 결과물 기준으로 수작업과 앱 사용 시간을 비교해요. [#62](https://github.com/jyje/open-attendee/issues/62) |
 | 철회 전 녹음과 파생 자료 처리 | 예정 | 이미 보관된 자료의 접근과 보관 범위를 정해요. [#65](https://github.com/jyje/open-attendee/issues/65) |
+| 실제 기기의 장시간 마이크 녹음 | 예정 | 긴 캡처, 화면 잠금 및 연결 중단 시 동작을 확인해요. [#68](https://github.com/jyje/open-attendee/issues/68) |
 | macOS (맥북) 지원 | 예정 | 지금은 웹앱만 제공해요. |
 | iOS 지원 | 예정 | 지금은 웹앱만 제공해요. |
 | AWS EKS 레시피 | 예정 | 같은 Helm 차트를 EKS에 올리는 방법을 정리해요. |

@@ -102,6 +102,12 @@ helm upgrade --install open-attendee ./helm --kube-context microk8s -n open-atte
   -f helm/values-dev.yaml --set image.tag=<태그> --set ingress.enabled=true --set ingress.host=<도메인>
 ```
 
+### 브라우저 녹음과 업로드 크기
+
+`FEATURE_RECORDING`이 켜져 있고 `TRANSCRIBER`가 `none`이 아닌 경우에만 자료 화면에 행사 녹음이 표시돼요. 마이크에는 HTTPS 또는 localhost와 브라우저 권한이 필요해요. 이 단계에서 저장한 녹음의 자동 전사는 예정이에요.
+
+녹음 파일의 앱 제한은 2 GiB예요. 차트는 일반 요청의 `ingress.proxyBodySize` 기본값을 32 MiB로 두고, 녹음을 켠 배포에서는 멀티파트 헤더 여유분을 더한 `ingress.recordingProxyBodySize=2050m`을 사용해요. 별도 프록시가 있으면 해당 프록시의 본문 크기 제한도 함께 확인해요. [ingress-nginx의 요청 크기 설정](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/#custom-max-body-size)
+
 ## 4. 확인과 되돌리기
 
 포트 포워딩한 앱은 저장소 루트에서 다음 명령으로 확인해요. 인그레스를 쓰면 끝에 앱의 HTTPS 주소를 넣어요.
