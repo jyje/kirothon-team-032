@@ -156,7 +156,7 @@ onBeforeUnmount(() => timers.forEach((t) => window.clearTimeout(t)))
 
       <DraftPanel v-show="section.id === 'draft'" :session-id="id" />
 
-      <AssetsPanel v-show="section.id === 'assets'" ref="assetsPanel" :session-id="id" :blocks="rows" />
+      <AssetsPanel v-show="section.id === 'assets'" ref="assetsPanel" :session-id="id" :blocks="rows" :active="section.id === 'assets'" />
     </template>
   </section>
 </template>

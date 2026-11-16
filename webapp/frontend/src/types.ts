@@ -35,6 +35,14 @@ export type AssetList = {
   items: Asset[]
   limits: Record<string, number>
   recording_enabled: boolean
+  recording_max_bytes: number
+}
+
+export type ConsentRecord = {
+  id: string
+  obtained_on: string
+  method: string
+  revoked_at: string | null
 }
 
 export type SummarySource = { kind: string; locator: string; target_id: string }

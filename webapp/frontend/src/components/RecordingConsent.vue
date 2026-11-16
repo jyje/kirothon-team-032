@@ -2,14 +2,11 @@
 import { onMounted, ref } from 'vue'
 import { api, ApiError } from '@/api'
 
-type ConsentRecord = {
-  id: string
-  obtained_on: string
-  method: string
-  revoked_at: string | null
-}
+import type { Asset, ConsentRecord } from '@/types'
+import BrowserRecording from './BrowserRecording.vue'
 
-const props = defineProps<{ sessionId: string }>()
+const props = defineProps<{ sessionId: string; active: boolean; maxRecordingBytes: number | null }>()
+const emit = defineEmits<{ recorded: [asset: Asset] }>()
 const base = `/api/sessions/${props.sessionId}/consents`
 const records = ref<ConsentRecord[]>([])
 const busy = ref(false)
@@ -109,6 +106,14 @@ onMounted(load)
       </li>
     </ul>
   </details>
+  <BrowserRecording
+    v-if="maxRecordingBytes !== null"
+    :session-id="sessionId"
+    :records="records"
+    :active="active"
+    :max-bytes="maxRecordingBytes"
+    @recorded="emit('recorded', $event)"
+  />
 </template>
 
 <style scoped>
