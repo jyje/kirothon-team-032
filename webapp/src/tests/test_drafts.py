@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session
 
+from open_attendee import drafts
 from open_attendee.llm import LLMGateway
+from open_attendee.models import Asset, AssetKind, Draft, DraftStatus, MemoBlock
 
 from .conftest import OWNER_PASSWORD
 
@@ -118,6 +122,71 @@ def test_approval_needs_every_unverified_sentence_handled(api: TestClient) -> No
     assert approved.json()["status"] == "approved"
 
 
+@pytest.mark.parametrize(("latest", "expected"), [("memo", 74), ("asset", 53), (None, None)])
+def test_approval_records_elapsed_since_latest_record(
+    api: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch, latest, expected
+) -> None:
+    sid = api.post("/api/sessions", json={"title": "정리 시간"}).json()["id"]
+    now = datetime(2026, 11, 16, 12, tzinfo=UTC)
+    monkeypatch.setattr(drafts, "utcnow", lambda: now)
+    draft = Draft(
+        session_id=sid,
+        template_id="builtin-blog",
+        template_snapshot="{}",
+        status=DraftStatus.IN_REVIEW,
+    )
+    db.add(draft)
+    db.add(MemoBlock(id=uuid.uuid4().hex, session_id=sid, text="\t　\n", updated_at=now))
+    if latest is not None:
+        db.add(
+            MemoBlock(
+                id=uuid.uuid4().hex,
+                session_id=sid,
+                text="검토할 필기",
+                created_at=now - timedelta(minutes=20),
+                updated_at=now - timedelta(seconds=74),
+            )
+        )
+        db.add(
+            Asset(
+                session_id=sid,
+                kind=AssetKind.REFERENCE,
+                display_name="notes.txt",
+                mime="text/plain",
+                created_at=now - timedelta(seconds=53 if latest == "asset" else 100),
+            )
+        )
+    db.commit()
+    draft_id = draft.id
+
+    response = api.post(f"/api/drafts/{draft_id}/approve")
+    assert response.status_code == 200, response.text
+    assert response.json()["review_seconds"] == expected
+    monkeypatch.setattr(drafts, "utcnow", lambda: now + timedelta(minutes=5))
+    with pytest.raises(drafts.ReviewConflict):
+        drafts.approve(db, draft)
+    reloaded = api.get(f"/api/sessions/{sid}/draft").json()["draft"]
+    assert reloaded["review_seconds"] == expected
+    assert reloaded["approved_at"] == now.isoformat()
+
+
+def test_older_approved_draft_keeps_missing_review_time(api: TestClient, db: Session) -> None:
+    sid = api.post("/api/sessions", json={"title": "이전 승인 기록"}).json()["id"]
+    db.add(
+        Draft(
+            session_id=sid,
+            template_id="builtin-blog",
+            template_snapshot="{}",
+            status=DraftStatus.APPROVED,
+            approved_at=datetime(2026, 11, 15, 12, tzinfo=UTC),
+        )
+    )
+    db.commit()
+    res = api.get(f"/api/sessions/{sid}/draft")
+    assert res.json()["draft"]["status"] == "approved"
+    assert res.json()["draft"]["review_seconds"] is None
+
+
 def test_export_only_after_approval_with_notice_marks_and_sources(api: TestClient) -> None:
     draft = _draft(api)
     ids = {s["text"]: s["id"] for s in _sentences(draft)}
@@ -158,7 +227,7 @@ def test_export_only_after_approval_with_notice_marks_and_sources(api: TestClien
 
 
 def test_html_export_escapes_title_sentences_and_source_labels(api: TestClient) -> None:
-    from sqlmodel import Session, select
+    from sqlmodel import select
 
     from open_attendee.models import Fact
 

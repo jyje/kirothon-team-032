@@ -65,6 +65,7 @@ export type Draft = {
   id: string
   status: 'generating' | 'in_review' | 'approved' | 'failed'
   approved_at: string | null
+  review_seconds: number | null
   unverified_count: number
   template_name: string | null
   sections: DraftSection[]

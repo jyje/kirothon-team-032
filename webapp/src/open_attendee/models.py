@@ -294,7 +294,7 @@ class Draft(SQLModel, table=True):
     uses_recording: bool = False  # 녹음 전사를 출처로 썼는지
     approved_at: datetime | None = Field(default=None, sa_column=utc_column(nullable=True))
     created_at: datetime = Field(default_factory=utcnow, sa_column=utc_column())
-    # 효과 측정(요구사항 28, 1단계 20.3). 0단계에서는 비워 둔다.
+    # 효과 측정(요구사항 28, 1단계 20.3).
     llm_calls: int = 0
     llm_input_chars: int = 0
     llm_output_chars: int = 0
