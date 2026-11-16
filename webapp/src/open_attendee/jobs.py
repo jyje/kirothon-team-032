@@ -13,14 +13,16 @@ from sqlalchemy import Engine, and_, or_, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, col, select
 
-from open_attendee import drafts
-from open_attendee.errors import NotFound
+from open_attendee import drafts, transcript_jobs
+from open_attendee.errors import ConsentRequired, NotFound, ValidationFailed
 from open_attendee.llm import LLMError, LLMGateway
 from open_attendee.models import EventSession, Job, JobKind, JobStatus, Template, utcnow
 from open_attendee.pipeline import summary
+from open_attendee.transcription import TranscriberUnavailable
 
 logger = logging.getLogger(__name__)
 AI_KINDS = (JobKind.SUMMARY, JobKind.DRAFT)
+JOB_KINDS = (*AI_KINDS, JobKind.TRANSCRIBE)
 ACTIVE_STATUSES = (JobStatus.QUEUED, JobStatus.RUNNING)
 MAX_ATTEMPTS = 3
 LEASE = timedelta(minutes=15)
@@ -41,18 +43,21 @@ def _require_owner(db: Session, session_id: str, owner_id: str) -> None:
         raise NotFound
 
 
-def latest_job(db: Session, session_id: str, owner_id: str, kind: JobKind) -> Job | None:
+def latest_job(
+    db: Session, session_id: str, owner_id: str, kind: JobKind, asset_id: str | None = None
+) -> Job | None:
     _require_owner(db, session_id, owner_id)
-    return db.exec(
-        select(Job)
-        .where(Job.session_id == session_id, Job.owner_id == owner_id, Job.kind == kind)
-        .order_by(col(Job.created_at).desc(), col(Job.id).desc())
-    ).first()
+    query = select(Job).where(
+        Job.session_id == session_id, Job.owner_id == owner_id, Job.kind == kind
+    )
+    if asset_id is not None:
+        query = query.where(col(Job.payload)["asset_id"].as_string() == asset_id)
+    return db.exec(query.order_by(col(Job.created_at).desc(), col(Job.id).desc())).first()
 
 
 def get_job(db: Session, job_id: str, owner_id: str) -> Job:
     job = db.get(Job, job_id)
-    if job is None or job.owner_id != owner_id or job.kind not in AI_KINDS:
+    if job is None or job.owner_id != owner_id or job.kind not in JOB_KINDS:
         raise NotFound
     _require_owner(db, job.session_id, owner_id)
     return job
@@ -63,6 +68,14 @@ def enqueue(
 ) -> tuple[Job, bool]:
     db.connection().exec_driver_sql("BEGIN IMMEDIATE")
     _require_owner(db, session_id, owner_id)
+    if kind is JobKind.TRANSCRIBE:
+        asset = transcript_jobs.get_audio(db, session_id, payload["asset_id"])
+        previous = latest_job(db, session_id, owner_id, kind, asset.id)
+        if previous and previous.status is JobStatus.DONE:
+            result = previous.model_copy()
+            db.commit()
+            return result, False
+        transcript_jobs.audio_key(asset)
     active = db.exec(
         select(Job).where(
             Job.session_id == session_id,
@@ -85,14 +98,14 @@ def enqueue(
     return result, True
 
 
-def claim_next(engine: Engine) -> Job | None:
+def claim_next(engine: Engine, kinds: tuple[JobKind, ...] = AI_KINDS) -> Job | None:
     now = utcnow()
     due = and_(col(Job.status) == JobStatus.QUEUED, col(Job.run_after) <= now)
     stale = and_(
         col(Job.status) == JobStatus.RUNNING,
         or_(col(Job.claimed_at).is_(None), col(Job.claimed_at) <= now - LEASE),
     )
-    match = col(Job.kind).in_(AI_KINDS)
+    match = col(Job.kind).in_(kinds)
     with Session(engine, expire_on_commit=False) as db:
         if db.exec(select(Job.id).where(match, or_(due, stale)).limit(1)).first() is None:
             return None
@@ -157,11 +170,49 @@ def _heartbeat(engine: Engine, job: Job, stop: Event) -> None:
             logger.warning("작업 임대 갱신 실패: %s", type(exc).__name__)
 
 
-def process_job(engine: Engine, job: Job, gateway_factory: GatewayFactory) -> None:
+def _process_transcription(
+    engine: Engine, job: Job, runner: transcript_jobs.TranscriptionRunner
+) -> None:
+    asset_id = job.payload["asset_id"]
+    with Session(engine) as db:
+        _require_owner(db, job.session_id, job.owner_id)
+        key = transcript_jobs.audio_key(transcript_jobs.get_audio(db, job.session_id, asset_id))
+    segments = runner.run(key)
+
+    with Session(engine) as db:
+        # 철회/삭제와 결과 저장을 같은 SQLite 쓰기 잠금으로 순서화한다.
+        db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+        _require_owner(db, job.session_id, job.owner_id)
+        asset = transcript_jobs.get_audio(db, job.session_id, asset_id)
+        if _update_claim(
+            db,
+            job,
+            status=JobStatus.DONE,
+            claimed_at=None,
+            claimed_by=None,
+            last_error=None,
+            payload={**job.payload, "result_id": asset_id},
+        ):
+            transcript_jobs.save_segments(db, asset, segments)
+            db.commit()
+
+
+def process_job(
+    engine: Engine,
+    job: Job,
+    gateway_factory: GatewayFactory,
+    transcription: transcript_jobs.TranscriptionRunner | None = None,
+) -> None:
     stop = Event()
     heartbeat = Thread(target=_heartbeat, args=(engine, job, stop), daemon=True)
     heartbeat.start()
     try:
+        if job.kind is JobKind.TRANSCRIBE:
+            if transcription is None:
+                _finish_failed(engine, job, "transcriber_not_configured", retry=False)
+                return
+            _process_transcription(engine, job, transcription)
+            return
         gateway = gateway_factory()
         if gateway is None:
             _finish_failed(engine, job, "llm_not_configured", retry=False)
@@ -192,6 +243,12 @@ def process_job(engine: Engine, job: Job, gateway_factory: GatewayFactory) -> No
     except (NotFound, drafts.NoSources, summary.NoSources) as exc:
         code = "event_not_found" if isinstance(exc, NotFound) else "no_sources"
         _finish_failed(engine, job, code, retry=False)
+    except ConsentRequired:
+        _finish_failed(engine, job, "consent_required", retry=False)
+    except (ValidationFailed, FileNotFoundError):
+        _finish_failed(engine, job, "audio_missing", retry=False)
+    except TranscriberUnavailable:
+        _finish_failed(engine, job, "transcriber_not_configured", retry=False)
     except LLMError:
         _finish_failed(engine, job, "llm_failed", retry=True)
     except Exception as exc:  # noqa: BLE001 - 워커가 다음 작업을 계속 처리해야 한다.
@@ -202,12 +259,18 @@ def process_job(engine: Engine, job: Job, gateway_factory: GatewayFactory) -> No
         heartbeat.join()
 
 
-def worker_loop(engine: Engine, gateway_factory: GatewayFactory, stop: Event) -> None:
+def worker_loop(
+    engine: Engine,
+    gateway_factory: GatewayFactory,
+    stop: Event,
+    transcription: transcript_jobs.TranscriptionRunner | None = None,
+) -> None:
+    kinds = AI_KINDS if transcription is None else (JobKind.TRANSCRIBE,)
     while not stop.is_set():
         try:
-            job = claim_next(engine)
+            job = claim_next(engine, kinds)
             if job is not None:
-                process_job(engine, job, gateway_factory)
+                process_job(engine, job, gateway_factory, transcription)
                 continue
         except SQLAlchemyError as exc:
             logger.warning("작업 워커 실패: %s", type(exc).__name__)

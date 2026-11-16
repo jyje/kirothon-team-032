@@ -33,6 +33,8 @@ from open_attendee.logging_redact import install_log_redaction
 from open_attendee.s3_storage import S3BlobStore
 from open_attendee.spa import mount_spa
 from open_attendee.storage import LocalBlobStore, StorageFull, StorageUnavailable
+from open_attendee.transcript_jobs import TranscriptionRunner
+from open_attendee.transcription import FasterWhisperTranscriber, Transcriber
 
 logger = logging.getLogger("open_attendee")
 
@@ -101,6 +103,7 @@ def discover_routers() -> list[APIRouter]:
 def create_app(
     settings: Settings | None = None,
     provider_factory: ProviderFactory | None = None,
+    transcriber: Transcriber | None = None,
 ) -> FastAPI:
     """앱을 만든다. 필수 설정이 없으면 `ConfigError`로 시작을 거부한다."""
     settings = settings or Settings.from_env()
@@ -112,6 +115,8 @@ def create_app(
         ]
     )
     factory: ProviderFactory = provider_factory or (lambda: resolve_provider(settings))
+    if transcriber is None and settings.transcriber == "faster_whisper":
+        transcriber = FasterWhisperTranscriber(settings.stt_model)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -137,12 +142,29 @@ def create_app(
             name="open-attendee-jobs",
             daemon=True,
         )
-        worker.start()
+        workers = [worker]
+        if transcriber is not None:
+            workers.append(
+                Thread(
+                    target=worker_loop,
+                    args=(
+                        engine,
+                        lambda: None,
+                        stop,
+                        TranscriptionRunner(app.state.blobs, transcriber),
+                    ),
+                    name="open-attendee-transcription",
+                    daemon=True,
+                )
+            )
+        for worker in workers:
+            worker.start()
         try:
             yield
         finally:
             stop.set()
-            await to_thread(worker.join, 5)
+            for worker in workers:
+                await to_thread(worker.join, 5)
             engine.dispose()
             if isinstance(app.state.blobs, S3BlobStore):
                 app.state.blobs.close()
@@ -156,6 +178,7 @@ def create_app(
         openapi_url=None,
     )
     app.state.settings = settings
+    app.state.transcriber = transcriber
     app.state.provider_factory = factory
     app.state.auth = Auth(settings)
     app.state.login_limiter = LoginRateLimiter()

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { api, ApiError } from '@/api'
 import type { Asset, AssetList, Block } from '@/types'
+import AudioTranscript from './AudioTranscript.vue'
 import RecordingConsent from './RecordingConsent.vue'
 
 const props = defineProps<{ sessionId: string; blocks: Block[]; active: boolean }>()
@@ -11,10 +12,11 @@ const assets = ref<Asset[]>([])
 const limits = ref<Record<string, number>>({})
 const error = ref('')
 const busy = ref(false)
+const transcriptionEnabled = ref(false)
 const maxRecordingBytes = ref<number | null>(null)
 
 const photos = computed(() => assets.value.filter((a) => a.kind === 'photo'))
-const recordings = computed(() => assets.value.filter((a) => a.kind === 'recording'))
+const recordings = computed(() => assets.value.filter((a) => a.kind === 'recording' || a.kind === 'voice_memo'))
 const docs = computed(() => assets.value.filter((a) => a.kind === 'slides' || a.kind === 'reference'))
 const base = computed(() => `/api/sessions/${props.sessionId}/assets`)
 
@@ -27,6 +29,7 @@ async function load() {
   const data = await api<AssetList>(base.value)
   assets.value = data.items.map((a) => ({ ...a, caption: a.caption ?? '' }))
   limits.value = data.limits
+  transcriptionEnabled.value = data.transcription_enabled
   maxRecordingBytes.value = data.recording_enabled && data.recording_max_bytes > 0
     ? data.recording_max_bytes : null
 }
@@ -162,8 +165,15 @@ defineExpose({ reload: load })
     <ul v-if="recordings.length" class="docs" aria-label="저장된 행사 녹음">
       <li v-for="recording in recordings" :key="recording.id">
         <span class="name">{{ recording.display_name }}</span>
-        <a class="btn btn-small" :href="`${base}/${recording.id}/file`" download>녹음 내려받기</a>
+        <a v-if="recording.status !== 'original_deleted'" class="btn btn-small" :href="`${base}/${recording.id}/file`" download>녹음 내려받기</a>
         <button class="btn btn-small" type="button" @click="remove(recording)">지우기</button>
+        <AudioTranscript
+          v-if="transcriptionEnabled || recording.status === 'ready' || recording.status === 'original_deleted'"
+          class="transcript"
+          :session-id="sessionId"
+          :asset="recording"
+          :enabled="transcriptionEnabled"
+        />
       </li>
     </ul>
   </section>
@@ -194,5 +204,6 @@ h2 { margin: 0; font-family: var(--font-hand); font-weight: 400; letter-spacing:
 .foot .hint { color: var(--color-ink); }
 .docs { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
 .docs li { display: flex; gap: var(--space-4); align-items: center; flex-wrap: wrap; }
+.transcript { flex-basis: 100%; min-inline-size: 0; }
 .name { font-weight: 700; word-break: break-all; }
 </style>

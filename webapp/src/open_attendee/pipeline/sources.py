@@ -8,17 +8,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
+from open_attendee.consent import is_valid_consent
 from open_attendee.models import (
     Asset,
     AssetKind,
+    ConsentRecord,
     DocChunk,
     MemoBlock,
     SourceKind,
     SourceRef,
+    TranscriptSegment,
 )
 from open_attendee.processors.docs import PPTX_MIME
+from open_attendee.transcript_jobs import AUDIO_KINDS
 
 # 한 번에 LLM에 보내는 출처 텍스트의 한도(요구사항 18.7). 넘으면 앞에서부터 담고 잘렸다고 알린다.
 MAX_SOURCE_CHARS = 24_000
@@ -45,7 +49,7 @@ class SourceMap:
 
 
 def build_source_map(db: Session, session_id: str) -> SourceMap:
-    """비어 있지 않은 메모, 발표자료와 참고자료 조각, 설명이 있는 사진으로 대응표를 만든다."""
+    """행사의 비어 있지 않은 메모, 첨부 자료와 유효한 전사로 대응표를 만든다."""
     raw: list[tuple[SourceRef, str]] = []
 
     blocks = db.exec(
@@ -85,6 +89,40 @@ def build_source_map(db: Session, session_id: str) -> SourceMap:
             ref = SourceRef(kind=SourceKind.PHOTO, target_id=asset.id, locator=asset.display_name)
             raw.append((ref, f"사진 설명: {asset.caption.strip()}"))  # type: ignore[union-attr]
 
+    audio_assets = [asset for asset in assets if asset.kind in AUDIO_KINDS]
+    if audio_assets:
+        valid_ids = {
+            record.id
+            for record in db.exec(
+                select(ConsentRecord).where(ConsentRecord.session_id == session_id)
+            )
+            if is_valid_consent(record, session_id)
+        }
+        allowed = [
+            asset.id
+            for asset in audio_assets
+            if (asset.kind is AssetKind.VOICE_MEMO and asset.solo_voice)
+            or asset.consent_id in valid_ids
+        ]
+        if allowed:
+            transcripts = db.exec(
+                select(TranscriptSegment)
+                .where(col(TranscriptSegment.asset_id).in_(allowed))
+                .order_by(col(TranscriptSegment.asset_id), col(TranscriptSegment.start_ms))
+            )
+            for segment in transcripts:
+                if segment.text.strip():
+                    name = by_id[segment.asset_id].display_name
+                    locator = f"{name} {_timestamp(segment.start_ms)}~{_timestamp(segment.end_ms)}"
+                    raw.append(
+                        (
+                            SourceRef(
+                                kind=SourceKind.TRANSCRIPT, target_id=segment.id, locator=locator
+                            ),
+                            segment.text.strip(),
+                        )
+                    )
+
     items: list[SourceItem] = []
     used = 0
     truncated = False
@@ -96,6 +134,12 @@ def build_source_map(db: Session, session_id: str) -> SourceMap:
         used += len(text)
         items.append(SourceItem(label=f"S{len(items) + 1}", ref=ref, text=text))
     return SourceMap(items=items, truncated=truncated)
+
+
+def _timestamp(milliseconds: int) -> str:
+    minutes, seconds = divmod(milliseconds // 1000, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours:02}:{minutes:02}:{seconds:02}.{milliseconds % 1000:03}"
 
 
 def render_sources(source_map: SourceMap) -> str:
