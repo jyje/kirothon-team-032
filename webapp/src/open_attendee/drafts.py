@@ -10,20 +10,23 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from html import escape
 from typing import Any
 
 from pydantic import BaseModel, Field
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select, update
 
 from open_attendee import templates
 from open_attendee.errors import NotFound, ValidationFailed
 from open_attendee.llm import LLMError, LLMGateway
 from open_attendee.models import (
+    Asset,
     Draft,
     DraftStatus,
     EventSession,
     Fact,
+    MemoBlock,
     Sentence,
     SentenceOrigin,
     SourceRef,
@@ -352,6 +355,25 @@ def add_insight(db: Session, draft: Draft, section_id: str, text: str) -> Senten
     return sentence
 
 
+def _last_recorded_at(db: Session, session_id: str) -> datetime | None:
+    memos = db.exec(
+        select(MemoBlock.updated_at, MemoBlock.text)
+        .where(MemoBlock.session_id == session_id)
+        .order_by(col(MemoBlock.updated_at).desc())
+    )
+    try:
+        memo_at = next((updated_at for updated_at, text in memos if text.strip()), None)
+    finally:
+        memos.close()
+    asset_at = db.exec(
+        select(Asset.created_at)
+        .where(Asset.session_id == session_id)
+        .order_by(col(Asset.created_at).desc())
+        .limit(1)
+    ).first()
+    return max((at for at in (memo_at, asset_at) if at is not None), default=None)
+
+
 def approve(db: Session, draft: Draft) -> Draft:
     """사람이 누른 승인 요청에서만 부른다. 미검증 문장이 남아 있으면 거부한다(23.1, 23.2)."""
     if draft.status is not DraftStatus.IN_REVIEW:
@@ -365,9 +387,25 @@ def approve(db: Session, draft: Draft) -> Draft:
         raise ReviewConflict(
             f"미검증 문장이 {len(pending)}개 남아 있어요.", [s.id for s in pending]
         )
-    draft.status = DraftStatus.APPROVED
-    draft.approved_at = utcnow()
-    db.add(draft)
+    last_recorded_at = _last_recorded_at(db, draft.session_id)
+    approved_at = utcnow()
+    review_seconds = (
+        max(0, int((approved_at - last_recorded_at).total_seconds()))
+        if last_recorded_at is not None
+        else None
+    )
+    result = db.exec(
+        update(Draft)
+        .where(col(Draft.id) == draft.id, col(Draft.status) == DraftStatus.IN_REVIEW)
+        .values(
+            status=DraftStatus.APPROVED,
+            approved_at=approved_at,
+            review_seconds=review_seconds,
+        )
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        raise ReviewConflict("검토 중인 초안만 승인할 수 있어요.")
     db.commit()
     db.refresh(draft)
     return draft

@@ -68,6 +68,21 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - run: helm lint helm --set image.tag=ci
       - run: helm template ci helm --set image.tag=ci --set ingress.enabled=true > /dev/null
+      - name: Verify environment image repositories
+        run: |
+          for environment in dev stg prd; do
+            values="helm/values-${environment}.yaml"
+            image="ghcr.io/jyje/open-attendee"
+            if [ "$environment" != prd ]; then
+              image="$image-$environment"
+            fi
+            helm lint helm -f "$values" --set image.tag=ci
+            rendered="$(helm template ci helm -f "$values" --set image.tag=ci)"
+            if [[ "$rendered" != *"image: \"$image:ci\""* ]]; then
+              echo "Unexpected image in $values"
+              exit 1
+            fi
+          done
   browser:
     name: browser (Chromium E2E)
     runs-on: ubuntu-24.04

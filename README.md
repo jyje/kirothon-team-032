@@ -94,7 +94,7 @@ FastAPI 서버 ─ SQLite (SQLModel) ─ 파일 저장소 (로컬 볼륨 또는 
 - **개인정보 보호**: 사진 위치 정보는 지우고, 동의 없는 녹음은 처리하지 않습니다.
 - **어디서든 실행**: 이미지 하나로 맥북, AWS, 온프레미스에서 돕니다.
 
-목표(아직 측정하지 않았습니다): 정리 시간 2~3시간 → 30분 이내. 녹음과 전사가 꺼져 있어서, 지금은 필기, 사진, PDF만 기준입니다.
+정리 시간 목표는 30분 이내입니다. 새로 승인한 초안에는 마지막 필기 수정이나 자료 추가부터 승인까지의 경과 시간이 표시됩니다. 대기 시간도 포함되며, 수작업과 같은 자료로 비교한 결과는 [#62](https://github.com/jyje/open-attendee/issues/62)에서 추적합니다.
 
 ## 5. 차별점
 
@@ -203,14 +203,14 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 **배포 환경 (반영됨)**
 - 다단계 `Dockerfile`(화면 빌드, 서버 의존성, 실행), 비루트, 8080, amd64와 arm64. 로컬용 `docker-compose.yml`.
 - `helm/`: 설정은 ConfigMap, 비밀은 미리 만든 Secret 참조, 데이터는 PVC, `/healthz` 확인, 복제본 1개.
+- 환경별 Helm 값 파일은 `dev`, `stg`, `prd`에서 각각 발행한 이미지를 선택합니다. [#59](https://github.com/jyje/open-attendee/issues/59)
 - CI: `ci.yml`(테스트, 린트, 화면 빌드, helm lint), `build.yml`(브랜치별 이미지, 불변 태그).
 - microk8s에 맞춘 값: 기본 저장소가 NFS라서 SQLite를 `delete` 저널로 사용, 인그레스 `nginx`와 `nginx-letsencrypt-prod`, 업로드 본문 32m, 인그레스 뒤 접속자 IP별 로그인 제한(`FORWARDED_ALLOW_IPS`).
 
 **로드맵 (아직 반영하지 않음)**
-- `dev`, `stg`, `prd` 브랜치 만들기와 환경별 helm values. 지금은 values 파일 하나입니다.
 - 수정한 문장의 재검증, 더 엄격한 지지 판정.
 - 녹음, STT 전사, 전사 후 원본 삭제, 동의 철회. 사진 얼굴 흐림.
-- 정리 시간 측정.
+- 수작업과 앱의 정리 시간 및 결과 품질 비교. [#62](https://github.com/jyje/open-attendee/issues/62)
 - 녹음 법률 검토, 데이터 보관 기간 정책.
 - 여러 사용자와 공유, AWS GPU 전사. 이번 범위 밖입니다.
 
