@@ -1,4 +1,8 @@
 {{- if .Values.ingress.enabled }}
+{{- $bodySize := .Values.ingress.proxyBodySize }}
+{{- if and (has (lower (trim (toString .Values.config.FEATURE_RECORDING))) (list "true" "yes" "on" "1")) (ne (lower (trim (toString .Values.config.TRANSCRIBER))) "none") }}
+{{- $bodySize = .Values.ingress.recordingProxyBodySize }}
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -7,7 +11,7 @@ metadata:
     {{- include "open-attendee.labels" . | nindent 4 }}
   annotations:
     cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer | quote }}
-    nginx.ingress.kubernetes.io/proxy-body-size: {{ .Values.ingress.proxyBodySize | quote }}
+    nginx.ingress.kubernetes.io/proxy-body-size: {{ $bodySize | quote }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   tls:
