@@ -165,3 +165,54 @@ test('템플릿을 저장하고 검토한 초안을 HTML과 Markdown으로 내�
   await expect(page.getByRole('heading', { name: '배포 기록', exact: true })).toBeVisible()
   await expect(page.getByText('템플릿 검토용 밋업 형식', { exact: false })).toBeVisible()
 })
+
+test('행사 녹음 동의를 저장하고 철회하면 새 자료 제출이 차단된다', async ({ page }) => {
+  await login(page)
+  const event = await createEvent(page, '녹음 동의 확인')
+  await page.goto(event + '#assets')
+  await page.getByText('녹음 동의', { exact: true }).click()
+  await page.getByLabel('동의 날짜', { exact: true }).fill('2026-11-14')
+  await page.getByLabel('동의 방법', { exact: true }).fill('행사 전에 구두로 동의를 받음')
+  for (const label of [
+    '녹음 대상 모두에게 알리고 동의를 받았어요.',
+    '동의 날짜와 방법을 기록할 수 있어요.',
+    '녹음을 동의 범위 밖에서 공개하지 않아요.',
+  ]) {
+    await page.getByRole('checkbox', { name: label, exact: true }).check()
+  }
+  const { pathname } = new URL(event)
+  const consentPath = '/api' + pathname + '/consents'
+  const created = page.waitForResponse(res => res.url().endsWith(consentPath) &&
+    res.request().method() === 'POST')
+  await page.getByRole('button', { name: '동의 기록 저장', exact: true }).click()
+  const response = await created
+  expect(response.status()).toBe(201)
+  const { id } = await response.json()
+  await expect(page.getByText('동의 기록을 저장했어요.')).toBeVisible()
+
+  await page.reload()
+  await page.getByText('녹음 동의', { exact: true }).click()
+  const entry = page.getByRole('list', { name: '녹음 동의 기록' }).getByRole('listitem')
+  await expect(entry).toContainText('유효')
+  await expect(entry).toContainText('행사 전에 구두로 동의를 받음')
+  const { csrf_token: csrf } = await (await page.request.get('/api/csrf')).json()
+  // WAV 헤더와 무음 샘플 1개.
+  const wav = Buffer.from('524946462600000057415645666d74201000000001000100401f0000803e00000200100064617461020000000000', 'hex')
+  const upload = () => page.request.post('/api' + pathname + '/assets', {
+    headers: { 'X-CSRF-Token': csrf },
+    multipart: {
+      kind: 'recording', consent_id: id,
+      file: { name: 'silence.wav', mimeType: 'audio/wav', buffer: wav },
+    },
+  })
+  expect((await upload()).status()).toBe(201)
+  page.once('dialog', dialog => dialog.accept())
+  await entry.getByRole('button', { name: /동의 철회$/ }).click()
+  await expect(entry).toContainText('철회됨')
+  expect((await upload()).status()).toBe(403)
+
+  await page.reload()
+  await page.getByText('녹음 동의', { exact: true }).click()
+  await expect(entry).toContainText('철회됨')
+  await expect(entry.getByRole('button', { name: /동의 철회$/ })).toHaveCount(0)
+})

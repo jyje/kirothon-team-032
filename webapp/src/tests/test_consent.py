@@ -147,7 +147,9 @@ def _session_id(client: TestClient) -> str:
 
 def test_create_and_revoke_consent_over_http(auth_client: TestClient) -> None:
     sid = _session_id(auth_client)
-    created = auth_client.post(f"/api/sessions/{sid}/consents", data=FORM)
+    path = f"/api/sessions/{sid}/consents"
+    assert auth_client.get(path).json() == {"items": []}
+    created = auth_client.post(path, data=FORM)
     assert created.status_code == 201, created.text
     body = created.json()
     assert body["obtained_on"] == "2026-11-14"
@@ -156,6 +158,16 @@ def test_create_and_revoke_consent_over_http(auth_client: TestClient) -> None:
     revoked = auth_client.post(f"/api/consents/{body['id']}/revoke")
     assert revoked.status_code == 200
     assert revoked.json()["revoked_at"] is not None
+    assert auth_client.get(path).json() == {"items": [revoked.json()]}
+    other_sid = _session_id(auth_client)
+    assert auth_client.get(f"/api/sessions/{other_sid}/consents").json() == {"items": []}
+
+
+def test_consent_list_looks_missing_to_another_owner(
+    auth_client: TestClient, sessions: SessionService
+) -> None:
+    event = sessions.create("someone-else", "다른 행사")
+    assert auth_client.get(f"/api/sessions/{event.id}/consents").status_code == 404
 
 
 @pytest.mark.parametrize("missing", ["informed_all", "can_document", "no_outside_disclosure"])
@@ -187,3 +199,4 @@ def test_consent_routes_need_login_and_csrf(auth_client: TestClient) -> None:
     auth_client.headers["X-CSRF-Token"] = token
     anonymous = TestClient(auth_client.app, base_url="https://testserver")
     assert anonymous.post(f"/api/sessions/{sid}/consents", data=FORM).status_code == 401
+    assert anonymous.get(f"/api/sessions/{sid}/consents").status_code == 401
