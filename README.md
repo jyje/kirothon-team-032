@@ -16,7 +16,7 @@
 
 **발표자료:** [`PRESENTATION.pdf`](PRESENTATION.pdf) (12쪽)
 
-> **지금 구현 단계:** 기록(필기, 사진, 자료 첨부, 녹음 동의 게이트)부터 AI 요약, 출처가 붙은 초안, 검토와 승인, 마크다운·HTML 내보내기까지 동작합니다. 녹음과 전사, 얼굴 흐림 등은 구현 전입니다. 기능별 상태는 2절 표에 있습니다.
+> **지금 구현 단계:** 기록(필기, 사진, 자료 첨부, 녹음 동의 게이트)부터 AI 요약, 출처가 붙은 초안, 검토와 승인, 마크다운·HTML 내보내기까지 동작합니다. 브라우저 녹음 파일 저장은 기능 설정으로 켤 수 있고, 전사와 얼굴 흐림은 예정입니다. 기능별 상태는 2절 표에 있습니다.
 
 ---
 
@@ -49,7 +49,7 @@
 | 사진 첨부 (세션당 200장까지, EXIF 위치 정보 제거, 촬영 시각이 가까운 메모에 자동 연결) | 필기와 사진이 따로 있음 | **동작** | [`AssetsPanel.vue`](webapp/frontend/src/components/AssetsPanel.vue), [`processors/photo.py`](webapp/src/open_attendee/processors/photo.py) |
 | 발표자료(PDF·PPTX) 첨부와 페이지별 텍스트 추출 (30MB까지) | 자료를 직접 읽고 요약해야 함 | **동작** | [`processors/docs.py`](webapp/src/open_attendee/processors/docs.py), [`assets.py`](webapp/src/open_attendee/assets.py) |
 | 참고자료 받기 (PDF, TXT, MD) | 흩어진 참고자료를 따로 찾아야 함 | **동작** (URL 가져오기는 구현 전) | [`assets.py`](webapp/src/open_attendee/assets.py) |
-| 녹음과 STT 전사 (동의 확인 후에만 처리) | 3~4시간 녹음을 직접 정리해야 함 | **동의 게이트만 동작**, 녹음과 전사는 꺼져 있음 | [`consent.py`](webapp/src/open_attendee/consent.py) |
+| 녹음과 STT 전사 (동의 확인 후에만 처리) | 3~4시간 녹음을 직접 정리해야 함 | **녹음 저장 구현**, 기본 설정에서 꺼져 있음. 전사는 예정 | [`consent.py`](webapp/src/open_attendee/consent.py) |
 | AI 요약, 초안 (모든 문장에 출처, 출처가 뒷받침하는지 AI가 한 번 더 확인) | 요약에 시간이 많이 듦 | **동작** (요청 안에서 동기 실행) | [`llm.py`](webapp/src/open_attendee/llm.py), [`drafts.py`](webapp/src/open_attendee/drafts.py), [`SummaryPanel.vue`](webapp/frontend/src/components/SummaryPanel.vue) |
 | 원하는 템플릿 선택, 저장, 재사용 | 원하는 형태로 정리하는 기능이 부족함 | 블로그 템플릿 1개만 고정, 선택·저장은 구현 전 | |
 | 인사이트 추가와 최종 검토 (미검증 문장 처리, 사람만 승인, 승인한 초안만 내보내기) | AI 요약만으로는 내 생각이 빠짐 | **동작** (마크다운·HTML) | [`DraftPanel.vue`](webapp/frontend/src/components/DraftPanel.vue), [`drafts.py`](webapp/src/open_attendee/drafts.py) |
@@ -73,7 +73,7 @@ FastAPI 서버 ─ SQLite (SQLModel) ─ 파일 저장소 (로컬 볼륨 또는 
 
 ### 개인정보와 보안 기본값
 
-- **녹음은 동의 기록이 있어야만 처리합니다.** 화면이 아니라 서버가 업로드와 작업 등록에서 두 번 막습니다. 본인 혼자 말한 음성 메모만 예외입니다. 지금 배포에서는 녹음 기능 자체가 꺼져 있습니다(`FEATURE_RECORDING=false`).
+- **녹음은 동의 기록이 있어야만 처리합니다.** 서버가 파일을 저장하기 전에 동의 상태를 확인합니다. 본인 혼자 말한 음성 메모만 예외입니다. 지금 배포에서는 녹음 기능 자체가 꺼져 있습니다(`FEATURE_RECORDING=false`).
 - **사진의 위치 정보(EXIF)는 저장하지 않습니다.** 촬영 시각만 남깁니다.
 - 소유자 1명의 비밀번호(argon2 해시)로 로그인하고, 로그인 시도는 접속자 IP별로 분당 5회까지 받으며, 쓰기 요청은 CSRF 토큰을 검사합니다.
 - 비밀 값은 환경 변수와 Kubernetes Secret으로만 받고, 저장소와 이미지에는 넣지 않으며 로그에서는 가립니다.
@@ -82,7 +82,7 @@ FastAPI 서버 ─ SQLite (SQLModel) ─ 파일 저장소 (로컬 볼륨 또는 
 
 ## 3. 사용 시나리오
 
-1. 발표를 들으며 웹에 필기하고, 사진과 발표자료를 첨부합니다. (녹음은 동의를 확인한 뒤 켤 수 있도록 준비 중입니다.)
+1. 발표를 들으며 웹에 필기하고, 사진과 발표자료를 첨부합니다. 녹음이 켜진 환경에서는 동의를 선택하고 브라우저에서 녹음합니다.
 2. AI 에이전트가 기록을 요약하고, 블로그 템플릿에 맞춰 출처가 붙은 초안을 만듭니다.
 3. 사용자가 초안에 자기 인사이트를 더하고, 미검증 문장을 처리한 뒤 승인하고, 마크다운이나 HTML로 내려받습니다.
 
@@ -192,6 +192,8 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 
 **자료** 화면의 **녹음 동의**에서 행사별 동의 날짜와 방법을 기록하고 철회할 수 있습니다. 철회한 동의는 새 녹음 자료를 올리는 데 사용할 수 없습니다. [#64](https://github.com/jyje/open-attendee/issues/64)
 
+녹음이 켜진 환경의 **자료** 화면에서 행사 동의를 선택하면 브라우저로 녹음을 시작하고 중지한 뒤 저장할 수 있습니다. [#67](https://github.com/jyje/open-attendee/issues/67)
+
 웹앱의 요약과 초안은 SQLite 작업 큐에서 실행됩니다. 화면은 서버 전송 이벤트(SSE)로 상태를 갱신하고, 새로고침하면 대기 중이거나 실행 중인 작업을 다시 연결합니다. 워커는 실패한 작업을 최대 세 번까지 시도하며, 중단된 작업은 임대가 만료되면 회수합니다. [#47](https://github.com/jyje/open-attendee/issues/47)
 
 승인한 초안은 HTML 파일로도 내려받을 수 있습니다. AI 생성 표시, 미검증 의견 표시, 출처가 포함되며 인터넷 연결 없이 브라우저에서 열립니다. [#41](https://github.com/jyje/open-attendee/issues/41)
@@ -211,7 +213,8 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 
 **로드맵 (아직 반영하지 않음)**
 - 수정한 문장의 재검증, 더 엄격한 지지 판정.
-- 브라우저 녹음, STT 전사, 전사 후 원본 삭제, 사진 얼굴 흐림.
+- STT 전사, 전사 후 원본 삭제, 사진 얼굴 흐림.
+- 실제 기기의 장시간 마이크 녹음과 중단 복구 검증. [#68](https://github.com/jyje/open-attendee/issues/68)
 - 녹음 동의 철회 전 자료의 접근 및 보관 범위. [#65](https://github.com/jyje/open-attendee/issues/65)
 - 수작업과 앱의 정리 시간 및 결과 품질 비교. [#62](https://github.com/jyje/open-attendee/issues/62)
 - 녹음 법률 검토, 데이터 보관 기간 정책.
