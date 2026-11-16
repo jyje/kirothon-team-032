@@ -73,7 +73,11 @@ def list_assets(
     counts = assets.chunk_counts(session_id)
     return {
         "items": [
-            {**_asset_body(a), "chunk_count": counts.get(a.id, 0)}
+            {
+                **_asset_body(a),
+                "chunk_count": counts.get(a.id, 0),
+                "consent_blocked": assets.gate.access_blocked(a),
+            }
             for a in assets.list(owner, session_id)
         ],
         "limits": {kind.value: limit for kind, limit in COUNT_LIMITS.items()},
@@ -145,8 +149,9 @@ def save_photo_review(
 
 @router.get("/sessions/{session_id}/assets/{asset_id}/transcript")
 def read_transcript(
-    session_id: str, asset_id: str, owner: Owner, sessions: Sessions, db: Db
+    session_id: str, asset_id: str, owner: Owner, sessions: Sessions, db: Db, response: Response
 ) -> dict[str, object]:
+    response.headers["Cache-Control"] = "private, no-store"
     sessions.get(owner, session_id)
     asset = transcript_jobs.get_audio(db, session_id, asset_id)
     return {

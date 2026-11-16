@@ -19,7 +19,12 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, col, select, update
 
 from open_attendee import templates
-from open_attendee.errors import NotFound, ValidationFailed
+from open_attendee.consent import (
+    RESULT_CONSENT_MESSAGE,
+    require_result_consent,
+    result_consent_blocked,
+)
+from open_attendee.errors import ConsentRequired, NotFound, ValidationFailed
 from open_attendee.llm import LLMError, LLMGateway
 from open_attendee.models import (
     Asset,
@@ -205,6 +210,7 @@ def generate_draft(db: Session, gateway: LLMGateway, session_id: str, template: 
     rows = [(text, labels) for _sid, text, labels in generated if labels]
     supported: set[int] = set()
     for start in range(0, len(rows), SUPPORT_BATCH_SIZE):
+        require_result_consent(db, session_id, source_map.consent_ids)
         batch = rows[start : start + SUPPORT_BATCH_SIZE]
         supported.update(start + index for index in _judge_support(gateway, batch, source_map))
     judged_index = {i: n for n, i in enumerate(i for i, g in enumerate(generated) if g[2])}
@@ -218,10 +224,12 @@ def generate_draft(db: Session, gateway: LLMGateway, session_id: str, template: 
         ),
         status=DraftStatus.IN_REVIEW,
         uses_recording=any(item.ref.kind is SourceKind.TRANSCRIPT for item in source_map.items),
+        consent_ids=source_map.consent_ids,
         llm_calls=gateway.calls,
         llm_input_chars=gateway.input_chars,
         llm_output_chars=gateway.output_chars,
     )
+    source_map.lock_consent(db, session_id)
     db.add(draft)
     db.flush()
     positions: dict[str, int] = {}
@@ -268,6 +276,8 @@ def get_draft(db: Session, owner_id: str, draft_id: str) -> Draft:
     event = db.get(EventSession, draft.session_id) if draft else None
     if draft is None or event is None or event.owner_id != owner_id:
         raise NotFound
+    if result_consent_blocked(db, draft):
+        raise ConsentRequired(RESULT_CONSENT_MESSAGE)
     return draft
 
 
@@ -281,6 +291,8 @@ def _sources_of(db: Session, sentence: Sentence) -> list[SourceRef]:
 
 
 def view_draft(db: Session, draft: Draft) -> DraftView:
+    if result_consent_blocked(db, draft):
+        raise ConsentRequired(RESULT_CONSENT_MESSAGE)
     sentences = db.exec(
         select(Sentence).where(Sentence.draft_id == draft.id).order_by(Sentence.position)
     ).all()
@@ -424,6 +436,8 @@ def _lock_review(db: Session, draft_id: str) -> None:
     current = db.get(Draft, draft_id)
     if current is None:
         raise NotFound
+    if result_consent_blocked(db, current):
+        raise ConsentRequired(RESULT_CONSENT_MESSAGE)
     _editable(current)
 
 

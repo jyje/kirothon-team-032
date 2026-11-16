@@ -88,7 +88,13 @@ def generate_summary(db: Session, gateway: LLMGateway, session_id: str) -> Summa
     bullets, dropped_bullets, dropped_labels = validate_bullets(out, source_map)
     if dropped_bullets or dropped_labels:
         logger.info("출처 검증: 항목 %d개, 라벨 %d개를 버렸어요", dropped_bullets, dropped_labels)
-    summary = LiveSummary(session_id=session_id, bullets=bullets, covered_until=utcnow())
+    source_map.lock_consent(db, session_id)
+    summary = LiveSummary(
+        session_id=session_id,
+        bullets=bullets,
+        covered_until=utcnow(),
+        consent_ids=source_map.consent_ids,
+    )
     db.add(summary)
     return SummaryResult(summary, dropped_bullets, dropped_labels, source_map.truncated)
 
