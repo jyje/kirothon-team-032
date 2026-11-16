@@ -57,6 +57,16 @@ def init_db(engine: Engine) -> None:
         if columns and "page_count" not in columns:
             conn.exec_driver_sql("ALTER TABLE asset ADD COLUMN page_count INTEGER")
     SQLModel.metadata.create_all(engine)
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            """
+            UPDATE sentence
+            SET verify_status = 'unverified', verify_note = '수정한 문장을 다시 검증해 주세요'
+            WHERE origin = 'ai_edited' AND verify_status = 'verified' AND verify_note = ?
+              AND draft_id IN (SELECT id FROM draft WHERE status = 'in_review')
+            """,
+            ("사용자가 수정함",),
+        )
 
 
 @contextmanager

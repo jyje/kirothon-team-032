@@ -48,7 +48,9 @@ class SourceMap:
         return len(self.items)
 
 
-def build_source_map(db: Session, session_id: str) -> SourceMap:
+def build_source_map(
+    db: Session, session_id: str, *, citations: list[SourceRef] | None = None
+) -> SourceMap:
     """행사의 비어 있지 않은 메모, 첨부 자료와 유효한 전사로 대응표를 만든다."""
     raw: list[tuple[SourceRef, str]] = []
 
@@ -126,7 +128,10 @@ def build_source_map(db: Session, session_id: str) -> SourceMap:
     items: list[SourceItem] = []
     used = 0
     truncated = False
+    cited = {(ref.kind, ref.target_id, ref.revision) for ref in citations or []}
     for ref, text in raw:
+        if citations is not None and (ref.kind, ref.target_id, ref.revision) not in cited:
+            continue
         text = text[:MAX_ITEM_CHARS]
         if used + len(text) > MAX_SOURCE_CHARS:
             truncated = True

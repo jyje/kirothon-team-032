@@ -11,6 +11,8 @@
 - 사진마다 얼굴 후보를 확인하고 직접 보완한 영역을 흐리게 처리할 수 있어요. [#74](https://github.com/jyje/open-attendee/issues/74)
 - 자료 업로드: 키보드로 사진·발표자료·참고자료의 파일 선택을 열 수 있어요. [#36](https://github.com/jyje/open-attendee/issues/36)
 - 승인한 초안에서 마지막 필기 수정이나 자료 추가부터 승인까지의 경과 시간을 확인할 수 있어요. [#61](https://github.com/jyje/open-attendee/issues/61)
+- 필기 자동 저장과 포커스 이동은 같은 내용의 메모를 한 번만 저장해요. [#76](https://github.com/jyje/open-attendee/issues/76)
+- AI 초안의 새 문장과 수정한 문장은 연결 출처의 실제 인용으로 검증해요. [#31](https://github.com/jyje/open-attendee/issues/31) · [#33](https://github.com/jyje/open-attendee/issues/33)
 - 요약 출처에는 자료 종류와 위치를 한 번씩 표시해요. [#49](https://github.com/jyje/open-attendee/issues/49)
 - 자료 화면에서 발표자료와 참고자료를 원래 파일 이름으로 내려받을 수 있어요. [#54](https://github.com/jyje/open-attendee/issues/54)
 - 첨부 파일은 로컬 볼륨이나 S3에 저장할 수 있어요. [#53](https://github.com/jyje/open-attendee/issues/53)
