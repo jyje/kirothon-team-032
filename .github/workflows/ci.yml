@@ -30,6 +30,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest -q
+      - run: uv run --frozen --extra stt pytest -q tests/test_transcription.py
   provider-manager:
     name: provider-manager (ruff, pytest)
     runs-on: ubuntu-24.04

@@ -1,7 +1,7 @@
 import { computed, onUnmounted, ref } from 'vue'
 import { api, ApiError } from '@/api'
 
-type Kind = 'summary' | 'draft'
+type Kind = 'summary' | 'draft' | 'transcribe'
 type Status = 'queued' | 'running' | 'done' | 'failed'
 export type AiJob = {
   id: string
@@ -18,13 +18,19 @@ const errors: Record<string, string> = {
   llm_not_configured: 'AI 제공자가 설정되지 않았어요.',
   llm_failed: 'AI 요청에 실패했어요. 다시 시도해 주세요.',
   event_not_found: '행사를 찾을 수 없어요.',
+  consent_required: '유효한 녹음 동의가 필요해요.',
+  audio_missing: '전사할 원본 음성 파일이 없어요.',
+  transcriber_not_configured: '전사기를 사용할 수 없어요.',
   worker_interrupted: '작업을 끝내지 못했어요. 다시 시도해 주세요.',
 }
 
 export function useAiJob(
   sessionId: string, kind: Kind, onComplete: (job: AiJob, restored: boolean) => Promise<void>,
+  assetId?: string,
 ) {
   const path = `/api/sessions/${sessionId}/jobs`
+  const query = new URLSearchParams({ kind })
+  if (assetId) query.set('asset_id', assetId)
   const state = ref<AiJob>()
   const error = ref('')
   const reconnecting = ref(false)
@@ -101,7 +107,7 @@ export function useAiJob(
 
   async function restore() {
     try {
-      const { job } = await api<{ job: AiJob | null }>(`${path}?kind=${kind}`)
+      const { job } = await api<{ job: AiJob | null }>(`${path}?${query}`)
       if (job) await follow(job, true)
     } catch {
       error.value = '기존 작업을 확인할 수 없어요. 화면을 새로고침해 주세요.'
@@ -115,7 +121,7 @@ export function useAiJob(
     submitting.value = true
     error.value = ''
     try {
-      const job = await api<AiJob>(path, { json: { kind, template_id: templateId } })
+      const job = await api<AiJob>(path, { json: { kind, template_id: templateId, asset_id: assetId } })
       await follow(job)
     } catch (cause) {
       error.value = cause instanceof ApiError ? cause.message : '작업을 등록하지 못했어요.'
