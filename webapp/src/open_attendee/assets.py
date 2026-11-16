@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import os
 import tempfile
@@ -22,7 +23,10 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import BinaryIO, Final
+from uuid import uuid4
 
+import cv2
+from PIL import Image
 from sqlalchemy import delete, func
 from sqlmodel import Session, select
 
@@ -41,10 +45,13 @@ from open_attendee.models import (
     AssetStatus,
     DocChunk,
     EventSession,
+    Job,
+    JobKind,
     MemoBlock,
     TranscriptSegment,
 )
 from open_attendee.processors.docs import PPTX_MIME, DocExtractor
+from open_attendee.processors.face_detection import PhotoRegion, suggest_faces
 from open_attendee.processors.photo import PhotoProcessor, link_photos
 from open_attendee.storage import BlobStore, make_key
 
@@ -175,6 +182,10 @@ def _bounded(stream: BinaryIO, limit: int, label: str) -> Iterator[tuple[BinaryI
 class OpenedBlob:
     asset: Asset
     stream: BinaryIO
+
+
+class PhotoRevisionChanged(Exception):
+    """열어 둔 검토 화면의 사진이 다른 요청에서 바뀌었다."""
 
 
 class AssetService:
@@ -350,23 +361,101 @@ class AssetService:
         chunks: list[DocChunk] | None = None,
     ) -> Asset:
         """파일을 쓰고 DB에 기록한다. 어느 쪽이든 실패하면 쓴 파일을 지워 찌꺼기를 남기지 않는다."""
+        with self._write_files(blobs):
+            asset.blob_key = next(iter(blobs))
+            self.db.add(asset)
+            self.db.add_all(chunks or [])
+            self.db.commit()
+        self.db.refresh(asset)
+        return asset
+
+    @contextlib.contextmanager
+    def _write_files(self, blobs: dict[str, BinaryIO]) -> Iterator[None]:
         written: list[str] = []
         try:
             for key, content in blobs.items():
                 written.append(key)
                 self.blobs.put(key, content)
-            asset.blob_key = next(iter(blobs))
-            self.db.add(asset)
-            self.db.add_all(chunks or [])
-            self.db.commit()
+            yield
         except BaseException:
             self.db.rollback()
             for key in written:
                 with contextlib.suppress(OSError):
                     self.blobs.delete(key)
             raise
+
+    # ------------------------------------------------------------------ 사진 얼굴 확인
+
+    def review_photo(self, owner_id: str, session_id: str, asset_id: str) -> dict[str, object]:
+        asset, raw, key = self._photo_for_review(owner_id, session_id, asset_id)
+        with Image.open(io.BytesIO(raw)) as image:
+            try:
+                candidates = suggest_faces(image)
+                detection_available = True
+            except (cv2.error, OSError):
+                candidates = []
+                detection_available = False
+        return {
+            "revision": _photo_revision(key),
+            "regions": [region.model_dump() for region in candidates],
+            "detection_available": detection_available,
+            "confirmed": asset.face_check_confirmed,
+        }
+
+    def save_photo_review(
+        self,
+        owner_id: str,
+        session_id: str,
+        asset_id: str,
+        revision: str,
+        regions: list[PhotoRegion],
+    ) -> Asset:
+        _asset, raw, previous = self._photo_for_review(owner_id, session_id, asset_id)
+        if revision != _photo_revision(previous):
+            raise PhotoRevisionChanged
+        replacement: dict[str, BinaryIO] = {}
+        clean = self.photos.blur(raw, regions) if regions else None
+        if clean is not None:
+            current = make_key(owner_id, session_id, f"{asset_id}.photo-{uuid4().hex}")
+            replacement = {
+                current: io.BytesIO(clean.data),
+                current + THUMB_SUFFIX: io.BytesIO(clean.thumbnail),
+            }
+
+        # 먼저 두 파일을 생성하고, 이후 현재 사진 포인터를 한 번만 바꾼다.
+        with self._write_files(replacement):
+            self.db.rollback()
+            self.db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+            asset = self.get(owner_id, session_id, asset_id)
+            if asset.blob_key != previous:
+                raise PhotoRevisionChanged
+            if clean is not None:
+                asset.blob_key = next(iter(replacement))
+                asset.size_bytes = len(clean.data)
+                asset.faces_blurred = True
+                self.db.add(
+                    Job(
+                        session_id=session_id,
+                        owner_id=owner_id,
+                        kind=JobKind.DELETE_PHOTO_VERSION,
+                        payload={"asset_id": asset_id, "key": previous},
+                    )
+                )
+            asset.face_check_confirmed = True
+            self.db.add(asset)
+            self.db.commit()
         self.db.refresh(asset)
         return asset
+
+    def _photo_for_review(
+        self, owner_id: str, session_id: str, asset_id: str
+    ) -> tuple[Asset, bytes, str]:
+        asset = self.get(owner_id, session_id, asset_id)
+        if asset.kind is not AssetKind.PHOTO or asset.blob_key is None:
+            raise NotFound("사진을 찾을 수 없어요.")
+        key = asset.blob_key
+        with contextlib.closing(self.open_file(owner_id, session_id, asset_id).stream) as stream:
+            return asset, stream.read(), key
 
     # ------------------------------------------------------------------ 설명과 연결
 
@@ -440,3 +529,7 @@ class AssetService:
         self.db.exec(delete(TranscriptSegment).where(TranscriptSegment.asset_id == asset.id))
         self.db.delete(asset)
         self.db.commit()
+
+
+def _photo_revision(key: str) -> str:
+    return hashlib.sha256(key.encode()).hexdigest()

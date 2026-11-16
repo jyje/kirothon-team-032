@@ -153,6 +153,7 @@ class JobKind(StrEnum):
     DOC = "doc"
     TRANSCRIBE = "transcribe"
     DELETE_AUDIO = "delete_audio"
+    DELETE_PHOTO_VERSION = "delete_photo_version"
 
 
 class JobStatus(StrEnum):

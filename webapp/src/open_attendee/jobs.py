@@ -14,9 +14,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, col, select
 
 from open_attendee import drafts, transcript_jobs
+from open_attendee.assets import THUMB_SUFFIX
 from open_attendee.errors import ConsentRequired, NotFound, ValidationFailed
 from open_attendee.llm import LLMError, LLMGateway
 from open_attendee.models import (
+    Asset,
     AssetStatus,
     EventSession,
     Job,
@@ -26,11 +28,13 @@ from open_attendee.models import (
     utcnow,
 )
 from open_attendee.pipeline import summary
+from open_attendee.storage import make_key
 from open_attendee.transcription import TranscriberUnavailable
 
 logger = logging.getLogger(__name__)
 AI_KINDS = (JobKind.SUMMARY, JobKind.DRAFT)
 JOB_KINDS = (*AI_KINDS, JobKind.TRANSCRIBE)
+CLEANUP_KINDS = (JobKind.DELETE_AUDIO, JobKind.DELETE_PHOTO_VERSION)
 ACTIVE_STATUSES = (JobStatus.QUEUED, JobStatus.RUNNING)
 MAX_ATTEMPTS = 3
 LEASE = timedelta(minutes=15)
@@ -122,7 +126,7 @@ def claim_next(engine: Engine, kinds: tuple[JobKind, ...] = AI_KINDS) -> Job | N
         db.rollback()
         db.connection().exec_driver_sql("BEGIN IMMEDIATE")
         for job in db.exec(select(Job).where(match, stale)):
-            exhausted = job.kind is not JobKind.DELETE_AUDIO and job.attempts >= MAX_ATTEMPTS
+            exhausted = job.kind not in CLEANUP_KINDS and job.attempts >= MAX_ATTEMPTS
             job.status = JobStatus.FAILED if exhausted else JobStatus.QUEUED
             job.last_error = "worker_interrupted"
             job.claimed_by = None
@@ -156,7 +160,7 @@ def _update_claim(db: Session, job: Job, **values: object) -> bool:
 
 
 def _finish_failed(engine: Engine, job: Job, code: str, *, retry: bool) -> None:
-    retry = retry and (job.kind is JobKind.DELETE_AUDIO or job.attempts < MAX_ATTEMPTS)
+    retry = retry and (job.kind in CLEANUP_KINDS or job.attempts < MAX_ATTEMPTS)
     with Session(engine) as db:
         _update_claim(
             db,
@@ -237,6 +241,30 @@ def _remove_original(engine: Engine, job: Job, runner: transcript_jobs.Transcrip
             db.commit()
 
 
+def _remove_photo_version(
+    engine: Engine,
+    job: Job,
+    runner: transcript_jobs.TranscriptionRunner,
+) -> None:
+    old = job.payload["key"]
+    asset_id = job.payload["asset_id"]
+    root = make_key(job.owner_id, job.session_id, asset_id)
+    if old != root and not old.startswith(root + ".photo-"):
+        raise ValidationFailed("이 행사의 사진 경로가 아니에요.")
+    with Session(engine) as db:
+        _require_owner(db, job.session_id, job.owner_id)
+        asset = db.get(Asset, asset_id)
+        if asset and asset.blob_key == old:
+            raise ValidationFailed("현재 사진을 삭제할 수 없어요.")
+    runner.blobs.delete(old)
+    runner.blobs.delete(old + THUMB_SUFFIX)
+    with Session(engine) as db:
+        if _update_claim(
+            db, job, status=JobStatus.DONE, claimed_by=None, claimed_at=None, last_error=None
+        ):
+            db.commit()
+
+
 def process_job(
     engine: Engine,
     job: Job,
@@ -247,6 +275,9 @@ def process_job(
     heartbeat = Thread(target=_heartbeat, args=(engine, job, stop), daemon=True)
     heartbeat.start()
     try:
+        if job.kind is JobKind.DELETE_PHOTO_VERSION and transcription is not None:
+            _remove_photo_version(engine, job, transcription)
+            return
         if job.kind is JobKind.DELETE_AUDIO and transcription is not None:
             _remove_original(engine, job, transcription)
             return
@@ -311,9 +342,9 @@ def worker_loop(
     if transcription is None:
         kinds = AI_KINDS
     elif transcription.transcriber is None:
-        kinds = (JobKind.DELETE_AUDIO,)
+        kinds = CLEANUP_KINDS
     else:
-        kinds = (JobKind.TRANSCRIBE, JobKind.DELETE_AUDIO)
+        kinds = (JobKind.TRANSCRIBE, *CLEANUP_KINDS)
     while not stop.is_set():
         try:
             job = claim_next(engine, kinds)

@@ -29,6 +29,8 @@ export type Asset = {
   caption: string
   linked_block_id: string | null
   link_manual: boolean
+  faces_blurred: boolean
+  face_check_confirmed: boolean
   chunk_count: number
 }
 

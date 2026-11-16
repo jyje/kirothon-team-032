@@ -11,7 +11,7 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop Chromium',
-      testMatch: ['desktop.spec.ts', 'recording.spec.ts', 'transcription.spec.ts'],
+      testMatch: ['desktop.spec.ts', 'recording.spec.ts', 'transcription.spec.ts', 'photo-face-review.spec.ts'],
       use: { ...devices['Desktop Chrome'] },
     },
     {
