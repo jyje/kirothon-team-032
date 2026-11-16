@@ -16,7 +16,7 @@
 
 **발표자료:** [`PRESENTATION.pdf`](PRESENTATION.pdf) (12쪽)
 
-> **지금 구현 단계:** 기록(필기, 사진, 자료 첨부, 녹음 동의 게이트)부터 AI 요약, 출처가 붙은 초안, 검토와 승인, 마크다운·HTML 내보내기까지 동작합니다. 브라우저 녹음 파일 저장은 기능 설정으로 켤 수 있고, 전사와 얼굴 흐림은 예정입니다. 기능별 상태는 2절 표에 있습니다.
+> **지금 구현 단계:** 기록(필기, 사진, 자료 첨부, 녹음 동의 게이트)부터 AI 요약, 출처가 붙은 초안, 검토와 승인, 마크다운·HTML 내보내기까지 동작합니다. 브라우저 녹음과 CPU 전사는 기능 설정으로 켤 수 있습니다. 사진 얼굴 흐림은 예정입니다. 기능별 상태는 2절 표에 있습니다.
 
 ---
 
@@ -49,7 +49,7 @@
 | 사진 첨부 (세션당 200장까지, EXIF 위치 정보 제거, 촬영 시각이 가까운 메모에 자동 연결) | 필기와 사진이 따로 있음 | **동작** | [`AssetsPanel.vue`](webapp/frontend/src/components/AssetsPanel.vue), [`processors/photo.py`](webapp/src/open_attendee/processors/photo.py) |
 | 발표자료(PDF·PPTX) 첨부와 페이지별 텍스트 추출 (30MB까지) | 자료를 직접 읽고 요약해야 함 | **동작** | [`processors/docs.py`](webapp/src/open_attendee/processors/docs.py), [`assets.py`](webapp/src/open_attendee/assets.py) |
 | 참고자료 받기 (PDF, TXT, MD) | 흩어진 참고자료를 따로 찾아야 함 | **동작** (URL 가져오기는 구현 전) | [`assets.py`](webapp/src/open_attendee/assets.py) |
-| 녹음과 STT 전사 (동의 확인 후에만 처리) | 3~4시간 녹음을 직접 정리해야 함 | **녹음 저장 구현**, 기본 설정에서 꺼져 있음. 전사는 예정 | [`consent.py`](webapp/src/open_attendee/consent.py) |
+| 녹음과 STT 전사 (동의 확인 후에만 처리) | 3~4시간 녹음을 직접 정리해야 함 | **녹음과 로컬 전사 구현**, 기본 설정에서 꺼져 있음 | [`consent.py`](webapp/src/open_attendee/consent.py) |
 | AI 요약, 초안 (모든 문장에 출처, 출처가 뒷받침하는지 AI가 한 번 더 확인) | 요약에 시간이 많이 듦 | **동작** (요청 안에서 동기 실행) | [`llm.py`](webapp/src/open_attendee/llm.py), [`drafts.py`](webapp/src/open_attendee/drafts.py), [`SummaryPanel.vue`](webapp/frontend/src/components/SummaryPanel.vue) |
 | 원하는 템플릿 선택, 저장, 재사용 | 원하는 형태로 정리하는 기능이 부족함 | 블로그 템플릿 1개만 고정, 선택·저장은 구현 전 | |
 | 인사이트 추가와 최종 검토 (미검증 문장 처리, 사람만 승인, 승인한 초안만 내보내기) | AI 요약만으로는 내 생각이 빠짐 | **동작** (마크다운·HTML) | [`DraftPanel.vue`](webapp/frontend/src/components/DraftPanel.vue), [`drafts.py`](webapp/src/open_attendee/drafts.py) |
@@ -194,6 +194,8 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 
 녹음이 켜진 환경의 **자료** 화면에서 행사 동의를 선택하면 브라우저로 녹음을 시작하고 중지한 뒤 저장할 수 있습니다. [#67](https://github.com/jyje/open-attendee/issues/67)
 
+로컬 전사기가 설정된 환경에서는 **자료**에서 저장한 음성의 전사를 요청하고 시간 구간을 볼 수 있습니다. 전사 구간은 요약과 초안의 출처로 사용할 수 있습니다. [#70](https://github.com/jyje/open-attendee/issues/70)
+
 웹앱의 요약과 초안은 SQLite 작업 큐에서 실행됩니다. 화면은 서버 전송 이벤트(SSE)로 상태를 갱신하고, 새로고침하면 대기 중이거나 실행 중인 작업을 다시 연결합니다. 워커는 실패한 작업을 최대 세 번까지 시도하며, 중단된 작업은 임대가 만료되면 회수합니다. [#47](https://github.com/jyje/open-attendee/issues/47)
 
 승인한 초안은 HTML 파일로도 내려받을 수 있습니다. AI 생성 표시, 미검증 의견 표시, 출처가 포함되며 인터넷 연결 없이 브라우저에서 열립니다. [#41](https://github.com/jyje/open-attendee/issues/41)
@@ -213,7 +215,8 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 
 **로드맵 (아직 반영하지 않음)**
 - 수정한 문장의 재검증, 더 엄격한 지지 판정.
-- STT 전사, 전사 후 원본 삭제, 사진 얼굴 흐림.
+- 전사 후 원본 삭제 및 행사별 보관 설정. [#71](https://github.com/jyje/open-attendee/issues/71)
+- 사진 얼굴 흐림.
 - 실제 기기의 장시간 마이크 녹음과 중단 복구 검증. [#68](https://github.com/jyje/open-attendee/issues/68)
 - 녹음 동의 철회 전 자료의 접근 및 보관 범위. [#65](https://github.com/jyje/open-attendee/issues/65)
 - 수작업과 앱의 정리 시간 및 결과 품질 비교. [#62](https://github.com/jyje/open-attendee/issues/62)
