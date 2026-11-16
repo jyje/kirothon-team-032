@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useAiJob } from '@/aiJobs'
 import { api, ApiError } from '@/api'
 import type { Asset, Transcript } from '@/types'
 
 const props = defineProps<{ sessionId: string; asset: Asset; enabled: boolean }>()
+const emit = defineEmits<{ assetStatus: [status: string] }>()
 const result = ref<Transcript>()
+let refreshTimer: number | undefined
+let expanded = false
+let unmounted = false
 const attemptedLoad = ref(false)
 const loadError = ref('')
 const { busy, error, status, restore, submit } = useAiJob(
@@ -13,21 +17,46 @@ const { busy, error, status, restore, submit } = useAiJob(
 )
 
 async function readResult() {
-  result.value = await api<Transcript>(
+  const transcript = await api<Transcript>(
     `/api/sessions/${props.sessionId}/assets/${props.asset.id}/transcript`,
   )
+  if (unmounted) return
+  result.value = transcript
+  emit('assetStatus', transcript.asset_status)
+  if (expanded && transcript.asset_status === 'original_delete_pending') {
+    window.clearTimeout(refreshTimer)
+    refreshTimer = window.setTimeout(() => void load(), 1000)
+  }
 }
 
-async function expand(event: Event) {
-  if (!(event.currentTarget as HTMLDetailsElement).open || attemptedLoad.value) return
-  attemptedLoad.value = true
+async function load() {
+  loadError.value = ''
   try {
     await readResult()
   } catch (cause) {
     loadError.value = cause instanceof ApiError ? cause.message : '전사 결과를 불러오지 못했어요.'
   }
-  if (props.enabled && !result.value?.completed && !loadError.value) await restore()
 }
+
+async function expand(event: Event) {
+  expanded = (event.currentTarget as HTMLDetailsElement).open
+  if (!expanded) {
+    window.clearTimeout(refreshTimer)
+    return
+  }
+  if (!attemptedLoad.value || loadError.value || result.value?.asset_status === 'original_delete_pending') {
+    await load()
+  }
+  if (!attemptedLoad.value && props.enabled && !result.value?.completed && !loadError.value) {
+    await restore()
+  }
+  if (!loadError.value) attemptedLoad.value = true
+}
+
+onBeforeUnmount(() => {
+  unmounted = true
+  window.clearTimeout(refreshTimer)
+})
 
 function time(ms: number) {
   const seconds = Math.floor(ms / 1000)

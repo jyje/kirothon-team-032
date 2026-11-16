@@ -15,16 +15,22 @@ from open_attendee.consent import ConsentGate
 from open_attendee.errors import NotFound, ValidationFailed
 from open_attendee.models import Asset, AssetKind, AssetStatus, TranscriptSegment
 from open_attendee.storage import BlobStore
-from open_attendee.transcription import SpeechSegment, Transcriber
+from open_attendee.transcription import SpeechSegment, Transcriber, TranscriberUnavailable
 
 AUDIO_KINDS = (AssetKind.RECORDING, AssetKind.VOICE_MEMO)
+TRANSCRIBED_STATUSES = (
+    AssetStatus.READY,
+    AssetStatus.ORIGINAL_DELETE_PENDING,
+    AssetStatus.ORIGINAL_DELETED,
+)
 
 
-def get_audio(db: Session, session_id: str, asset_id: str) -> Asset:
+def get_audio(db: Session, session_id: str, asset_id: str, *, check_consent: bool = True) -> Asset:
     asset = db.get(Asset, asset_id)
     if asset is None or asset.session_id != session_id or asset.kind not in AUDIO_KINDS:
         raise NotFound("음성 자료를 찾을 수 없어요.")
-    ConsentGate(db).require_consent(asset)
+    if check_consent:
+        ConsentGate(db).require_consent(asset)
     return asset
 
 
@@ -42,24 +48,30 @@ def list_segments(db: Session, asset_id: str) -> Sequence[TranscriptSegment]:
     ).all()
 
 
-def save_segments(db: Session, asset: Asset, segments: list[SpeechSegment]) -> None:
+def save_segments(
+    db: Session, asset: Asset, segments: list[SpeechSegment], *, retain_audio: bool
+) -> bool:
     # 최초 성공 결과의 ID를 보존한다. 요약과 초안이 이 ID를 출처로 사용한다.
-    if asset.status in (AssetStatus.READY, AssetStatus.ORIGINAL_DELETED):
-        return
+    if asset.status in TRANSCRIBED_STATUSES:
+        return False
     db.add_all(
         TranscriptSegment(asset_id=asset.id, start_ms=s.start_ms, end_ms=s.end_ms, text=s.text)
         for s in segments
     )
-    asset.status = AssetStatus.READY
+    delete_original = bool(segments and asset.blob_key is not None and not retain_audio)
+    asset.status = AssetStatus.ORIGINAL_DELETE_PENDING if delete_original else AssetStatus.READY
     db.add(asset)
+    return delete_original
 
 
 @dataclass(frozen=True)
 class TranscriptionRunner:
     blobs: BlobStore
-    transcriber: Transcriber
+    transcriber: Transcriber | None
 
     def run(self, key: str) -> list[SpeechSegment]:
+        if self.transcriber is None:
+            raise TranscriberUnavailable
         with closing(self.blobs.open(key)) as audio:
             if audio.seekable():
                 return list(self.transcriber.transcribe(audio))

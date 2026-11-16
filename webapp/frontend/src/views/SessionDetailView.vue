@@ -17,6 +17,7 @@ const section = useWorkspaceSection()
 
 const title = ref('')
 const eventDate = ref('')
+const retainAudio = ref(false)
 const rows = ref<Row[]>([])
 const loading = ref(true)
 const notice = ref('')
@@ -31,6 +32,7 @@ async function load() {
   const data = await api<SessionDetail>(`/api/sessions/${id}`)
   title.value = data.title
   eventDate.value = data.event_date ?? ''
+  retainAudio.value = data.retain_audio
   rows.value = data.blocks.map(toRow)
   if (!rows.value.length) addBlock()
   loading.value = false
@@ -156,7 +158,14 @@ onBeforeUnmount(() => timers.forEach((t) => window.clearTimeout(t)))
 
       <DraftPanel v-show="section.id === 'draft'" :session-id="id" />
 
-      <AssetsPanel v-show="section.id === 'assets'" ref="assetsPanel" :session-id="id" :blocks="rows" :active="section.id === 'assets'" />
+      <AssetsPanel
+        v-show="section.id === 'assets'"
+        v-model:retain-audio="retainAudio"
+        ref="assetsPanel"
+        :session-id="id"
+        :blocks="rows"
+        :active="section.id === 'assets'"
+      />
     </template>
   </section>
 </template>
