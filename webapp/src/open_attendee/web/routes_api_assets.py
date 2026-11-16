@@ -10,7 +10,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import Response, StreamingResponse
 
-from open_attendee.assets import COUNT_LIMITS
+from open_attendee.assets import COUNT_LIMITS, SIZE_LIMITS
 from open_attendee.errors import ValidationFailed
 from open_attendee.models import Asset, AssetKind
 from open_attendee.web.deps import AppSettings, Assets, Owner
@@ -73,6 +73,7 @@ def list_assets(
         ],
         "limits": {kind.value: limit for kind, limit in COUNT_LIMITS.items()},
         "recording_enabled": recording_enabled(settings),
+        "recording_max_bytes": SIZE_LIMITS[AssetKind.RECORDING],
     }
 
 

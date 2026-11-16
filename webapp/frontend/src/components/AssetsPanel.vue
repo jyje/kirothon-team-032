@@ -4,15 +4,17 @@ import { api, ApiError } from '@/api'
 import type { Asset, AssetList, Block } from '@/types'
 import RecordingConsent from './RecordingConsent.vue'
 
-const props = defineProps<{ sessionId: string; blocks: Block[] }>()
+const props = defineProps<{ sessionId: string; blocks: Block[]; active: boolean }>()
 const emit = defineEmits<{ changed: [] }>()
 
 const assets = ref<Asset[]>([])
 const limits = ref<Record<string, number>>({})
 const error = ref('')
 const busy = ref(false)
+const maxRecordingBytes = ref<number | null>(null)
 
 const photos = computed(() => assets.value.filter((a) => a.kind === 'photo'))
+const recordings = computed(() => assets.value.filter((a) => a.kind === 'recording'))
 const docs = computed(() => assets.value.filter((a) => a.kind === 'slides' || a.kind === 'reference'))
 const base = computed(() => `/api/sessions/${props.sessionId}/assets`)
 
@@ -25,6 +27,13 @@ async function load() {
   const data = await api<AssetList>(base.value)
   assets.value = data.items.map((a) => ({ ...a, caption: a.caption ?? '' }))
   limits.value = data.limits
+  maxRecordingBytes.value = data.recording_enabled && data.recording_max_bytes > 0
+    ? data.recording_max_bytes : null
+}
+
+function addRecording(asset: Asset) {
+  assets.value.push(asset)
+  emit('changed')
 }
 
 async function upload(kind: 'photo' | 'slides' | 'reference', files: FileList | null) {
@@ -144,7 +153,19 @@ defineExpose({ reload: load })
         <button class="btn btn-small" type="button" @click="remove(d)">지우기</button>
       </li>
     </ul>
-    <RecordingConsent :session-id="sessionId" />
+    <RecordingConsent
+      :session-id="sessionId"
+      :active="active"
+      :max-recording-bytes="maxRecordingBytes"
+      @recorded="addRecording"
+    />
+    <ul v-if="recordings.length" class="docs" aria-label="저장된 행사 녹음">
+      <li v-for="recording in recordings" :key="recording.id">
+        <span class="name">{{ recording.display_name }}</span>
+        <a class="btn btn-small" :href="`${base}/${recording.id}/file`" download>녹음 내려받기</a>
+        <button class="btn btn-small" type="button" @click="remove(recording)">지우기</button>
+      </li>
+    </ul>
   </section>
 </template>
 
