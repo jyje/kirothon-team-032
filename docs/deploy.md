@@ -104,9 +104,15 @@ helm upgrade --install open-attendee ./helm --kube-context microk8s -n open-atte
 
 ### 브라우저 녹음과 업로드 크기
 
-`FEATURE_RECORDING`이 켜져 있고 `TRANSCRIBER`가 `none`이 아닌 경우에만 자료 화면에 행사 녹음이 표시돼요. 마이크에는 HTTPS 또는 localhost와 브라우저 권한이 필요해요. 이 단계에서 저장한 녹음의 자동 전사는 예정이에요.
+`FEATURE_RECORDING`이 켜져 있고 `TRANSCRIBER`가 `none`이 아닌 경우에만 자료 화면에 행사 녹음이 표시돼요. 마이크에는 HTTPS 또는 localhost와 브라우저 권한이 필요해요. 전사기를 연결한 뒤 자료 화면에서 녹음마다 전사를 요청할 수 있어요.
 
 녹음 파일의 앱 제한은 2 GiB예요. 차트는 일반 요청의 `ingress.proxyBodySize` 기본값을 32 MiB로 두고, 녹음을 켠 배포에서는 멀티파트 헤더 여유분을 더한 `ingress.recordingProxyBodySize=2050m`을 사용해요. 별도 프록시가 있으면 해당 프록시의 본문 크기 제한도 함께 확인해요. [ingress-nginx의 요청 크기 설정](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/#custom-max-body-size)
+
+### CPU 전사 켜기
+
+로컬 개발에서는 `uv sync --frozen --extra stt`로 선택 의존성을 설치해요. 컨테이너는 `docker build --build-arg INSTALL_STT=true -f docker/Dockerfile .`로 해당 의존성을 포함해 빌드하고, 배포 설정에 `TRANSCRIBER=faster_whisper`를 넣어요. 브라우저에서 새 행사 녹음도 저장하려면 `FEATURE_RECORDING=true`를 함께 설정해요.
+
+`STT_MODEL`에는 모델 이름(기본값 `small`)이나 컨테이너에서 읽을 수 있는 모델 디렉터리를 지정해요. 모델 이름을 쓰면 최초 전사에서 가중치를 받아 `/data/huggingface`에 캐시해요. 앱은 음성을 5분 단위로 읽고 CPU에서 처리해요. 모델과 배포 환경에 따라 메모리 사용량과 처리 시간이 달라지므로, 해당 조합에서 측정한 뒤 컨테이너 한도를 설정해요. S3 원본을 전사하면 처리하는 동안 임시 파일을 둘 디스크 공간이 필요해요. [faster-whisper 모델 설정](https://github.com/SYSTRAN/faster-whisper#model-conversion)
 
 ## 4. 확인과 되돌리기
 
