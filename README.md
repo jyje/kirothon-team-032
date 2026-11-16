@@ -210,6 +210,8 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 
 배포 후에는 [상태 점검 명령](docs/deploy.md#4-확인과-되돌리기)으로 준비 상태, LLM 설정, 첨부 저장소를 확인할 수 있습니다. [#57](https://github.com/jyje/open-attendee/issues/57)
 
+AI 문장을 수정하면 기존 연결 출처를 다시 확인합니다. 판정 결과가 연결된 자료의 실제 인용문을 포함해야 검증 상태로 저장됩니다. 사람은 승인 전에 근거를 검토합니다. [#31](https://github.com/jyje/open-attendee/issues/31) · [#33](https://github.com/jyje/open-attendee/issues/33)
+
 **배포 환경 (반영됨)**
 - 다단계 `Dockerfile`(화면 빌드, 서버 의존성, 실행), 비루트, 8080, amd64와 arm64. 로컬용 `docker-compose.yml`.
 - `helm/`: 설정은 ConfigMap, 비밀은 미리 만든 Secret 참조, 데이터는 PVC, `/healthz` 확인, 복제본 1개.
@@ -218,7 +220,6 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 - microk8s에 맞춘 값: 기본 저장소가 NFS라서 SQLite를 `delete` 저널로 사용, 인그레스 `nginx`와 `nginx-letsencrypt-prod`, 업로드 본문 32m, 인그레스 뒤 접속자 IP별 로그인 제한(`FORWARDED_ALLOW_IPS`).
 
 **로드맵 (아직 반영하지 않음)**
-- 수정한 문장의 재검증, 더 엄격한 지지 판정.
 - 실제 기기의 장시간 마이크 녹음과 중단 복구 검증. [#68](https://github.com/jyje/open-attendee/issues/68)
 - 녹음 동의 철회 전 자료의 접근 및 보관 범위. [#65](https://github.com/jyje/open-attendee/issues/65)
 - 수작업과 앱의 정리 시간 및 결과 품질 비교. [#62](https://github.com/jyje/open-attendee/issues/62)
