@@ -5,6 +5,7 @@ from datetime import date
 from io import BytesIO
 from typing import BinaryIO
 
+import pytest
 from sqlalchemy import Engine
 from sqlmodel import Session
 
@@ -12,10 +13,11 @@ from open_attendee import jobs
 from open_attendee.assets import AssetService
 from open_attendee.config import Settings
 from open_attendee.consent import ConsentForm, ConsentGate
-from open_attendee.models import Asset, AssetKind, AssetStatus, JobKind, JobStatus, utcnow
+from open_attendee.errors import NotFound
+from open_attendee.models import Asset, AssetKind, AssetStatus, Job, JobKind, JobStatus, utcnow
 from open_attendee.pipeline.sources import build_source_map
 from open_attendee.sessions import SessionService
-from open_attendee.storage import LocalBlobStore
+from open_attendee.storage import BlobNotFound, LocalBlobStore, StorageUnavailable
 from open_attendee.transcript_jobs import TranscriptionRunner, list_segments
 from open_attendee.transcription import SpeechSegment
 
@@ -51,6 +53,8 @@ def test_transcription_commits_result_and_uses_stable_sources(
     engine: Engine, db: Session, sessions: SessionService, blobs: LocalBlobStore, settings: Settings
 ) -> None:
     event_id, consent_id, audio_id = _audio(db, sessions, blobs, settings)
+    sessions.update(OWNER, event_id, retain_audio=True)
+    original = db.get(Asset, audio_id).blob_key
 
     class Model:
         def transcribe(self, audio: BinaryIO) -> Iterator[SpeechSegment]:
@@ -71,6 +75,9 @@ def test_transcription_commits_result_and_uses_stable_sources(
         segments = list_segments(check, audio_id)
         assert len(segments) == 1
         assert check.get(Asset, audio_id).status == AssetStatus.READY
+        with blobs.open(original) as audio:
+            assert audio.read() == WAV
+        assert jobs.claim_next(engine, (JobKind.DELETE_AUDIO,)) is None
         source = build_source_map(check, event_id).items[0].ref
         assert source.target_id == segments[0].id
         assert source.locator == "voice.wav 00:00:00.100~00:00:01.500"
@@ -102,6 +109,8 @@ def test_revocation_during_decode_leaves_no_result(
         assert failed.status == JobStatus.FAILED
         assert failed.last_error == "consent_required"
         assert not list_segments(check, audio_id)
+        with blobs.open(check.get(Asset, audio_id).blob_key) as original:
+            assert original.read() == WAV
 
 
 def test_transient_failure_retries_without_partial_segments(
@@ -136,3 +145,77 @@ def test_transient_failure_retries_without_partial_segments(
     with Session(engine) as check:
         assert jobs.get_job(check, job.id, OWNER).status == JobStatus.DONE
         assert len(list_segments(check, audio_id)) == 1
+
+
+def test_delete_original_recovers_after_storage_applies_delete_but_reply_is_lost(
+    engine: Engine, db: Session, sessions: SessionService, blobs: LocalBlobStore, settings: Settings
+) -> None:
+    event_id, _, audio_id = _audio(db, sessions, blobs, settings)
+    original = db.get(Asset, audio_id).blob_key
+    assert not sessions.get(OWNER, event_id).retain_audio
+
+    class Model:
+        def transcribe(self, _audio: BinaryIO) -> Iterator[SpeechSegment]:
+            yield SpeechSegment(100, 1500, "전사는 유지")
+
+    class InterruptedStore(LocalBlobStore):
+        def delete(self, key: str) -> None:
+            super().delete(key)
+            raise StorageUnavailable("응답이 끊겼어요")
+
+    jobs.enqueue(db, event_id, OWNER, JobKind.TRANSCRIBE, {"asset_id": audio_id})
+    claim = jobs.claim_next(engine, (JobKind.TRANSCRIBE,))
+    assert claim is not None
+    jobs.process_job(engine, claim, lambda: None, TranscriptionRunner(blobs, Model()))
+    with Session(engine) as check:
+        asset = check.get(Asset, audio_id)
+        assert asset.status == AssetStatus.ORIGINAL_DELETE_PENDING
+        with blobs.open(original) as audio:
+            assert audio.read() == WAV
+        with pytest.raises(NotFound):
+            AssetService(check, blobs, settings).open_file(OWNER, event_id, audio_id)
+        segment_id = list_segments(check, audio_id)[0].id
+
+    cleanup = jobs.claim_next(engine, (JobKind.DELETE_AUDIO,))
+    assert cleanup is not None
+    interrupted = TranscriptionRunner(InterruptedStore(settings.data_dir / "blobs"), None)
+    jobs.process_job(engine, cleanup, lambda: None, interrupted)
+    with pytest.raises(BlobNotFound):
+        blobs.open(original)
+    with Session(engine) as check:
+        pending = check.get(Job, cleanup.id)
+        assert pending.status == JobStatus.QUEUED
+        assert check.get(Asset, audio_id).status == AssetStatus.ORIGINAL_DELETE_PENDING
+        pending.attempts = jobs.MAX_ATTEMPTS
+        pending.run_after = utcnow()
+        check.commit()
+
+    # Grabs the recorded job without a loaded STT model after a restart.
+    retry = jobs.claim_next(engine, (JobKind.DELETE_AUDIO,))
+    assert retry is not None
+    jobs.process_job(engine, retry, lambda: None, TranscriptionRunner(blobs, None))
+    with Session(engine) as check:
+        asset = check.get(Asset, audio_id)
+        assert asset.status == AssetStatus.ORIGINAL_DELETED
+        assert asset.blob_key is None
+        assert check.get(Job, cleanup.id).status is JobStatus.DONE
+        assert build_source_map(check, event_id).items[0].ref.target_id == segment_id
+
+
+def test_empty_transcript_keeps_original(
+    engine: Engine, db: Session, sessions: SessionService, blobs: LocalBlobStore, settings: Settings
+) -> None:
+    event_id, _, audio_id = _audio(db, sessions, blobs, settings)
+    original = db.get(Asset, audio_id).blob_key
+
+    class Model:
+        def transcribe(self, _audio: BinaryIO) -> Iterator[SpeechSegment]:
+            return iter(())
+
+    jobs.enqueue(db, event_id, OWNER, JobKind.TRANSCRIBE, {"asset_id": audio_id})
+    claim = jobs.claim_next(engine, (JobKind.TRANSCRIBE,))
+    assert claim is not None
+    jobs.process_job(engine, claim, lambda: None, TranscriptionRunner(blobs, Model()))
+    assert jobs.claim_next(engine, (JobKind.DELETE_AUDIO,)) is None
+    with blobs.open(original) as audio:
+        assert audio.read() == WAV

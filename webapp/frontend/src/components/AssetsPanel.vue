@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { api, ApiError } from '@/api'
-import type { Asset, AssetList, Block } from '@/types'
+import type { Asset, AssetList, Block, SessionDetail } from '@/types'
 import AudioTranscript from './AudioTranscript.vue'
 import RecordingConsent from './RecordingConsent.vue'
 
 const props = defineProps<{ sessionId: string; blocks: Block[]; active: boolean }>()
 const emit = defineEmits<{ changed: [] }>()
+const retainAudio = defineModel<boolean>('retainAudio', { required: true })
+const savingRetention = ref(false)
+const retentionNotice = ref('')
 
 const assets = ref<Asset[]>([])
 const limits = ref<Record<string, number>>({})
@@ -32,6 +35,25 @@ async function load() {
   transcriptionEnabled.value = data.transcription_enabled
   maxRecordingBytes.value = data.recording_enabled && data.recording_max_bytes > 0
     ? data.recording_max_bytes : null
+}
+
+async function saveRetention(event: Event) {
+  const input = event.currentTarget as HTMLInputElement
+  savingRetention.value = true
+  retentionNotice.value = ''
+  error.value = ''
+  try {
+    const result = await api<SessionDetail>(`/api/sessions/${props.sessionId}`, {
+      method: 'PATCH', json: { retain_audio: input.checked },
+    })
+    retainAudio.value = result.retain_audio
+    retentionNotice.value = '원본 보관 설정을 저장했어요.'
+  } catch (cause) {
+    input.checked = retainAudio.value
+    error.value = cause instanceof ApiError ? cause.message : '원본 보관 설정을 저장하지 못했어요.'
+  } finally {
+    savingRetention.value = false
+  }
 }
 
 function addRecording(asset: Asset) {
@@ -162,17 +184,28 @@ defineExpose({ reload: load })
       :max-recording-bytes="maxRecordingBytes"
       @recorded="addRecording"
     />
+    <div class="retention">
+      <label class="retain-control">
+        <input type="checkbox" :checked="retainAudio" :disabled="savingRetention" @change="saveRetention" />
+        전사 후 음성 원본 보관
+      </label>
+      <p class="hint">전사 결과가 저장될 때의 설정을 적용해요. 삭제는 저장소에서 다시 시도될 수 있어요.</p>
+      <p v-if="retentionNotice" class="hint" role="status">{{ retentionNotice }}</p>
+    </div>
     <ul v-if="recordings.length" class="docs" aria-label="저장된 행사 녹음">
       <li v-for="recording in recordings" :key="recording.id">
         <span class="name">{{ recording.display_name }}</span>
-        <a v-if="recording.status !== 'original_deleted'" class="btn btn-small" :href="`${base}/${recording.id}/file`" download>녹음 내려받기</a>
+        <span v-if="recording.status === 'original_deleted'" class="hint">원본 삭제됨</span>
+        <span v-else-if="recording.status === 'original_delete_pending'" class="hint" role="status">원본 삭제 대기 중</span>
+        <a v-else class="btn btn-small" :href="`${base}/${recording.id}/file`" download>녹음 내려받기</a>
         <button class="btn btn-small" type="button" @click="remove(recording)">지우기</button>
         <AudioTranscript
-          v-if="transcriptionEnabled || recording.status === 'ready' || recording.status === 'original_deleted'"
+          v-if="transcriptionEnabled || ['ready', 'original_deleted', 'original_delete_pending'].includes(recording.status)"
           class="transcript"
           :session-id="sessionId"
           :asset="recording"
           :enabled="transcriptionEnabled"
+          @asset-status="recording.status = $event"
         />
       </li>
     </ul>
@@ -204,6 +237,9 @@ h2 { margin: 0; font-family: var(--font-hand); font-weight: 400; letter-spacing:
 .foot .hint { color: var(--color-ink); }
 .docs { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
 .docs li { display: flex; gap: var(--space-4); align-items: center; flex-wrap: wrap; }
+.retention { display: grid; gap: var(--space-2); }
+.retention p { margin: 0; }
+.retain-control { display: flex; align-items: center; gap: var(--space-2); }
 .transcript { flex-basis: 100%; min-inline-size: 0; }
 .name { font-weight: 700; word-break: break-all; }
 </style>

@@ -114,6 +114,7 @@ class AssetStatus(StrEnum):
     PROCESSING = "processing"
     READY = "ready"
     FAILED = "failed"
+    ORIGINAL_DELETE_PENDING = "original_delete_pending"
     ORIGINAL_DELETED = "original_deleted"  # 전사 후 원본 음성 삭제됨
 
 
@@ -151,6 +152,7 @@ class JobKind(StrEnum):
     PHOTO = "photo"
     DOC = "doc"
     TRANSCRIBE = "transcribe"
+    DELETE_AUDIO = "delete_audio"
 
 
 class JobStatus(StrEnum):

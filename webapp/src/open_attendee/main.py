@@ -142,21 +142,20 @@ def create_app(
             name="open-attendee-jobs",
             daemon=True,
         )
-        workers = [worker]
-        if transcriber is not None:
-            workers.append(
-                Thread(
-                    target=worker_loop,
-                    args=(
-                        engine,
-                        lambda: None,
-                        stop,
-                        TranscriptionRunner(app.state.blobs, transcriber),
-                    ),
-                    name="open-attendee-transcription",
-                    daemon=True,
-                )
-            )
+        workers = [
+            worker,
+            Thread(
+                target=worker_loop,
+                args=(
+                    engine,
+                    lambda: None,
+                    stop,
+                    TranscriptionRunner(app.state.blobs, transcriber),
+                ),
+                name="open-attendee-audio-jobs",
+                daemon=True,
+            ),
+        ]
         for worker in workers:
             worker.start()
         try:

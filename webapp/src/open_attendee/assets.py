@@ -226,7 +226,11 @@ class AssetService:
     ) -> OpenedBlob:
         """저장된 파일을 연다. 원본이 지워진 자료는 `NotFound`."""
         asset = self.get(owner_id, session_id, asset_id)
-        if asset.blob_key is None or (thumbnail and asset.kind is not AssetKind.PHOTO):
+        if (
+            asset.blob_key is None
+            or asset.status is AssetStatus.ORIGINAL_DELETE_PENDING
+            or (thumbnail and asset.kind is not AssetKind.PHOTO)
+        ):
             raise NotFound("파일을 찾을 수 없어요.")
         key = asset.blob_key + THUMB_SUFFIX if thumbnail else asset.blob_key
         try:
