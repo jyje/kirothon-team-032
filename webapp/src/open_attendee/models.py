@@ -295,6 +295,7 @@ class Draft(SQLModel, table=True):
         sa_column=enum_column(DraftStatus, default=DraftStatus.GENERATING),
     )
     uses_recording: bool = False  # 녹음 전사를 출처로 썼는지
+    consent_ids: list[str] | None = Field(default=None, sa_column=Column(JSON))
     approved_at: datetime | None = Field(default=None, sa_column=utc_column(nullable=True))
     created_at: datetime = Field(default_factory=utcnow, sa_column=utc_column())
     # 효과 측정(요구사항 28, 1단계 20.3).
@@ -343,5 +344,6 @@ class LiveSummary(SQLModel, table=True):
     session_id: str = Field(index=True)
     bullets: list[dict] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
     # [{"text": ..., "sources": [SourceRef...]}]
+    consent_ids: list[str] | None = Field(default=None, sa_column=Column(JSON))
     covered_until: datetime = Field(default_factory=utcnow, sa_column=utc_column())
     created_at: datetime = Field(default_factory=utcnow, sa_column=utc_column())

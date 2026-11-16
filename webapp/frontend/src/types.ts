@@ -31,6 +31,7 @@ export type Asset = {
   link_manual: boolean
   faces_blurred: boolean
   face_check_confirmed: boolean
+  consent_blocked?: boolean
   chunk_count: number
 }
 
@@ -61,6 +62,7 @@ export type Summary = { id: string; created_at: string; bullets: SummaryBullet[]
 export type SummaryResponse = {
   summary: Summary | null
   llm_configured: boolean
+  consent_blocked?: boolean
   dropped_bullets?: number
   truncated?: boolean
 }
@@ -88,7 +90,7 @@ export type Draft = {
   template_name: string | null
   sections: DraftSection[]
 }
-export type DraftResponse = { draft: Draft | null; llm_configured: boolean }
+export type DraftResponse = { draft: Draft | null; llm_configured: boolean; consent_blocked?: boolean }
 
 export type TemplateInfo = { id: string; name: string; sections: string[] }
 export type TemplateSection = {

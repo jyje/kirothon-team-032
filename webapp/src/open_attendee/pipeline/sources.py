@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from sqlmodel import Session, col, select
 
-from open_attendee.consent import is_valid_consent
+from open_attendee.consent import is_valid_consent, require_result_consent
 from open_attendee.models import (
     Asset,
     AssetKind,
@@ -34,6 +34,7 @@ class SourceItem:
     label: str
     ref: SourceRef
     text: str
+    consent_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,17 @@ class SourceMap:
     def get(self, label: str) -> SourceItem | None:
         return next((i for i in self.items if i.label == label), None)
 
+    @property
+    def consent_ids(self) -> list[str]:
+        return sorted({item.consent_id for item in self.items if item.consent_id is not None})
+
+    def lock_consent(self, db: Session, session_id: str) -> None:
+        consent_ids = self.consent_ids
+        if consent_ids:
+            db.rollback()
+            db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+            require_result_consent(db, session_id, consent_ids)
+
     def __len__(self) -> int:
         return len(self.items)
 
@@ -53,6 +65,7 @@ def build_source_map(
 ) -> SourceMap:
     """행사의 비어 있지 않은 메모, 첨부 자료와 유효한 전사로 대응표를 만든다."""
     raw: list[tuple[SourceRef, str]] = []
+    transcript_consents: dict[str, str] = {}
 
     blocks = db.exec(
         select(MemoBlock).where(MemoBlock.session_id == session_id).order_by(MemoBlock.position)
@@ -114,7 +127,11 @@ def build_source_map(
             )
             for segment in transcripts:
                 if segment.text.strip():
-                    name = by_id[segment.asset_id].display_name
+                    asset = by_id[segment.asset_id]
+                    if not (asset.kind is AssetKind.VOICE_MEMO and asset.solo_voice):
+                        assert asset.consent_id is not None  # allowed에서 유효한 동의를 확인했다
+                        transcript_consents[segment.id] = asset.consent_id
+                    name = asset.display_name
                     locator = f"{name} {_timestamp(segment.start_ms)}~{_timestamp(segment.end_ms)}"
                     raw.append(
                         (
@@ -137,7 +154,16 @@ def build_source_map(
             truncated = True
             break
         used += len(text)
-        items.append(SourceItem(label=f"S{len(items) + 1}", ref=ref, text=text))
+        items.append(
+            SourceItem(
+                label=f"S{len(items) + 1}",
+                ref=ref,
+                text=text,
+                consent_id=transcript_consents.get(ref.target_id)
+                if ref.kind is SourceKind.TRANSCRIPT
+                else None,
+            )
+        )
     return SourceMap(items=items, truncated=truncated)
 
 

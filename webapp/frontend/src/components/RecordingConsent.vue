@@ -6,7 +6,7 @@ import type { Asset, ConsentRecord } from '@/types'
 import BrowserRecording from './BrowserRecording.vue'
 
 const props = defineProps<{ sessionId: string; active: boolean; maxRecordingBytes: number | null }>()
-const emit = defineEmits<{ recorded: [asset: Asset] }>()
+const emit = defineEmits<{ recorded: [asset: Asset]; revoked: [] }>()
 const base = `/api/sessions/${props.sessionId}/consents`
 const records = ref<ConsentRecord[]>([])
 const busy = ref(false)
@@ -44,11 +44,12 @@ function save(event: SubmitEvent) {
 }
 
 function revoke(record: ConsentRecord) {
-  if (!window.confirm('이 동의를 철회할까요? 이 기록으로 새 녹음 자료를 올릴 수 없어요.')) return
+  if (!window.confirm('이 동의를 철회할까요? 연결된 녹음과 전사, 해당 녹음으로 만든 요약과 초안을 열 수 없게 돼요. 서버에 보관된 자료는 행사에서 삭제할 수 있어요.')) return
   return change(async () => {
     const revoked = await api<ConsentRecord>(`/api/consents/${record.id}/revoke`, { method: 'POST' })
     records.value = records.value.map(item => item.id === revoked.id ? revoked : item)
     notice.value = '동의를 철회했어요.'
+    emit('revoked')
   }, '동의를 철회하지 못했어요.')
 }
 

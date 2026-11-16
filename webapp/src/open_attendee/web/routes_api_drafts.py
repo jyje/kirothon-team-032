@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from open_attendee import drafts as svc
+from open_attendee.consent import result_consent_blocked
 from open_attendee.errors import NotFound
 from open_attendee.llm import LLMError
 from open_attendee.models import Draft
@@ -59,14 +60,18 @@ def get_draft(
     sessions: Sessions,
     db: Db,
     gateway: Gateway,
+    response: Response,
     result_id: str | None = None,
 ) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "private, no-store"
     sessions.get(owner, session_id)
     draft = db.get(Draft, result_id) if result_id else svc.latest_draft(db, session_id)
     if result_id and (draft is None or draft.session_id != session_id):
         raise NotFound
+    blocked = draft is not None and result_consent_blocked(db, draft)
     return {
-        "draft": _body(db, draft) if draft else None,
+        "draft": _body(db, draft) if draft and not blocked else None,
+        **({"consent_blocked": True} if blocked else {}),
         "llm_configured": gateway is not None,
     }
 
@@ -78,8 +83,10 @@ def create_draft(
     sessions: Sessions,
     db: Db,
     gateway: Gateway,
+    response: Response,
     body: DraftCreate | None = None,
 ) -> JSONResponse | dict[str, Any]:
+    response.headers["Cache-Control"] = "private, no-store"
     sessions.get(owner, session_id)
     if gateway is None:
         return _error(
@@ -173,5 +180,6 @@ def export_draft(
         headers={
             "Content-Disposition": f'attachment; filename="open-attendee-draft.{extension}"',
             "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
         },
     )

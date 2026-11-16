@@ -18,6 +18,7 @@ const section = useWorkspaceSection()
 const title = ref('')
 const eventDate = ref('')
 const retainAudio = ref(false)
+const consentRevision = ref(0)
 const rows = ref<Row[]>([])
 const loading = ref(true)
 const notice = ref('')
@@ -191,9 +192,9 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <SummaryPanel v-show="section.id === 'summary'" :session-id="id" />
+      <SummaryPanel v-show="section.id === 'summary'" :key="`summary-${consentRevision}`" :session-id="id" />
 
-      <DraftPanel v-show="section.id === 'draft'" :session-id="id" />
+      <DraftPanel v-show="section.id === 'draft'" :key="`draft-${consentRevision}`" :session-id="id" />
 
       <AssetsPanel
         v-show="section.id === 'assets'"
@@ -202,6 +203,7 @@ onBeforeUnmount(() => {
         :session-id="id"
         :blocks="rows"
         :active="section.id === 'assets'"
+        @consent-revoked="consentRevision++"
       />
     </template>
   </section>

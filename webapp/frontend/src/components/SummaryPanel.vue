@@ -61,6 +61,7 @@ defineExpose({ reload: load })
     <p v-if="status" class="hint" role="status">{{ status }}</p>
     <p v-if="notice" class="hint" role="status">{{ notice }}</p>
 
+    <p v-if="data?.consent_blocked" class="hint" role="status">녹음 동의가 철회돼 이전 요약을 열 수 없어요. 남은 자료로 새 요약을 만들 수 있어요.</p>
     <ol v-if="data?.summary" class="bullets">
       <li v-for="(b, i) in data.summary.bullets" :key="i" class="bullet">
         <p>{{ b.text }}</p>
