@@ -76,7 +76,6 @@ test('템플릿을 저장하고 검토한 초안을 HTML과 Markdown으로 내�
   await note.fill(record)
   await note.press('Tab')
   await expect(page.getByText(/^저장됨/)).toBeVisible()
-  await page.reload()
   await expect(note).toHaveValue(record)
 
   await nav.getByRole('link', { name: 'AI 요약', exact: true }).click()
@@ -141,6 +140,8 @@ test('템플릿을 저장하고 검토한 초안을 HTML과 Markdown으로 내�
   await draftPanel.getByRole('button', { name: '저장', exact: true }).click()
   await expect(verified).toContainText('출처 확인됨')
   await expect(approve).toBeEnabled()
+  const saved = await context.request.get('/api' + new URL(event).pathname)
+  expect((await saved.json()).blocks[0].revision).toBe(1)
 
   const approval = page.waitForResponse(response => response.url().endsWith('/approve'))
   page.once('dialog', dialog => dialog.accept())

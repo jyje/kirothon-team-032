@@ -8,7 +8,7 @@ import SummaryPanel from '@/components/SummaryPanel.vue'
 import type { Block, SessionDetail } from '@/types'
 import { useWorkspaceSection } from '@/workspace'
 
-type Row = Block & { state: 'saved' | 'dirty' | 'saving' | 'error'; message: string }
+type Row = Block & { savedText: string; state: 'saved' | 'dirty' | 'saving' | 'error'; message: string }
 
 const route = useRoute()
 const router = useRouter()
@@ -22,10 +22,13 @@ const rows = ref<Row[]>([])
 const loading = ref(true)
 const notice = ref('')
 const timers = new Map<string, number>()
+const pending = new Map<string, Promise<void>>()
+const removing = new Set<string>()
+let unmounted = false
 const assetsPanel = ref<InstanceType<typeof AssetsPanel> | null>(null)
 
 function toRow(b: Block): Row {
-  return { ...b, state: 'saved', message: `저장됨 · 수정 ${b.revision}번째` }
+  return { ...b, savedText: b.text, state: 'saved', message: `저장됨 · 수정 ${b.revision}번째` }
 }
 
 async function load() {
@@ -43,36 +46,57 @@ function addBlock() {
     id: crypto.randomUUID(),
     position: rows.value.length,
     text: '',
+    savedText: '',
     revision: 0,
     state: 'saved',
     message: '',
   })
 }
 
+function clearSaveTimer(id: string) {
+  window.clearTimeout(timers.get(id))
+  timers.delete(id)
+}
+
 function onInput(row: Row) {
   row.state = 'dirty'
   row.message = '입력 중…'
-  window.clearTimeout(timers.get(row.id))
-  timers.set(row.id, window.setTimeout(() => save(row), 800))
+  clearSaveTimer(row.id)
+  timers.set(row.id, window.setTimeout(() => void save(row), 800))
+}
+
+function markSaved(row: Row) {
+  row.state = 'saved'
+  row.message = row.revision ? `저장됨 · 수정 ${row.revision}번째` : ''
 }
 
 async function save(row: Row) {
-  if (!row.text.trim() && row.revision === 0) {
-    row.state = 'saved'
-    row.message = ''
+  clearSaveTimer(row.id)
+  let previous: Promise<void> | undefined
+  while ((previous = pending.get(row.id))) await previous
+  if (unmounted || removing.has(row.id) || !rows.value.includes(row)) return
+  if (row.text === row.savedText || (!row.text.trim() && row.revision === 0)) {
+    markSaved(row)
     return
   }
+
+  const request = persist(row, row.text).finally(() => pending.delete(row.id))
+  pending.set(row.id, request)
+  await request
+}
+
+async function persist(row: Row, text: string) {
   row.state = 'saving'
   row.message = '저장하는 중…'
   try {
     const saved = await api<Block>(`/api/sessions/${id}/blocks/${row.id}`, {
       method: 'PUT',
-      json: { text: row.text, position: rows.value.indexOf(row) },
+      json: { text, position: rows.value.indexOf(row) },
     })
     row.revision = saved.revision
+    row.savedText = saved.text
     void assetsPanel.value?.reload()
-    row.state = 'saved'
-    row.message = `저장됨 · 수정 ${saved.revision}번째`
+    if (row.text === text) markSaved(row)
   } catch (e) {
     row.state = 'error'
     row.message = e instanceof ApiError ? e.message : '저장하지 못했어요.'
@@ -80,10 +104,20 @@ async function save(row: Row) {
 }
 
 async function removeBlock(row: Row) {
-  window.clearTimeout(timers.get(row.id))
-  if (row.revision > 0) await api(`/api/sessions/${id}/blocks/${row.id}`, { method: 'DELETE' })
-  rows.value = rows.value.filter((r) => r.id !== row.id)
-  if (!rows.value.length) addBlock()
+  if (removing.has(row.id)) return
+  removing.add(row.id)
+  clearSaveTimer(row.id)
+  try {
+    await pending.get(row.id)
+    if (row.revision > 0) await api(`/api/sessions/${id}/blocks/${row.id}`, { method: 'DELETE' })
+    rows.value = rows.value.filter((r) => r.id !== row.id)
+    if (!rows.value.length) addBlock()
+  } catch (e) {
+    row.state = 'error'
+    row.message = e instanceof ApiError ? e.message : '메모를 지우지 못했어요.'
+  } finally {
+    removing.delete(row.id)
+  }
 }
 
 async function saveMeta() {
@@ -106,7 +140,10 @@ async function removeSession() {
 }
 
 onMounted(load)
-onBeforeUnmount(() => timers.forEach((t) => window.clearTimeout(t)))
+onBeforeUnmount(() => {
+  unmounted = true
+  timers.forEach(timer => window.clearTimeout(timer))
+})
 </script>
 
 <template>
