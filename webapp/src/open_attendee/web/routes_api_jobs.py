@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy import Engine
 from sqlmodel import Session
 from starlette.concurrency import run_in_threadpool
@@ -18,15 +18,22 @@ from starlette.concurrency import run_in_threadpool
 from open_attendee import jobs, templates
 from open_attendee.errors import NotFound
 from open_attendee.models import Job, JobKind, JobStatus
-from open_attendee.web.deps import Db, Gateway, Owner, Sessions
+from open_attendee.web.deps import Db, Owner, Sessions, get_gateway
 
 router = APIRouter(prefix="/api")
-AIKind = Literal["summary", "draft"]
+QueueKind = Literal["summary", "draft", "transcribe"]
 
 
 class JobRequest(BaseModel):
-    kind: AIKind
+    kind: QueueKind
     template_id: str | None = None
+    asset_id: str | None = None
+
+    @model_validator(mode="after")
+    def validate_asset(self) -> JobRequest:
+        if self.kind == "transcribe" and not self.asset_id:
+            raise ValueError("전사할 음성 자료를 선택해 주세요.")
+        return self
 
 
 def _body(job: Job) -> dict[str, Any]:
@@ -35,6 +42,7 @@ def _body(job: Job) -> dict[str, Any]:
         "kind": job.kind.value,
         "status": job.status.value,
         "attempts": job.attempts,
+        "asset_id": job.payload.get("asset_id"),
         "result_id": job.payload.get("result_id"),
         "dropped_bullets": int(job.payload.get("dropped_bullets", "0")),
         "truncated": job.payload.get("truncated") == "1",
@@ -48,13 +56,22 @@ def _error(status: int, code: str, message: str) -> JSONResponse:
 
 @router.post("/sessions/{session_id}/jobs")
 def create_job(
-    session_id: str, body: JobRequest, owner: Owner, sessions: Sessions, db: Db, gateway: Gateway
+    session_id: str,
+    body: JobRequest,
+    owner: Owner,
+    sessions: Sessions,
+    db: Db,
+    request: Request,
 ) -> JSONResponse:
     sessions.get(owner, session_id)
-    if gateway is None:
-        return _error(503, "llm_not_configured", "AI 제공자가 설정되지 않았어요.")
     kind = JobKind(body.kind)
     payload: dict[str, str] = {}
+    if kind is JobKind.TRANSCRIBE:
+        if request.app.state.transcriber is None:
+            return _error(503, "transcriber_not_configured", "전사기가 설정되지 않았어요.")
+        payload["asset_id"] = body.asset_id or ""
+    elif get_gateway(request) is None:
+        return _error(503, "llm_not_configured", "AI 제공자가 설정되지 않았어요.")
     if kind is JobKind.DRAFT:
         try:
             template = templates.get_template(
@@ -66,13 +83,22 @@ def create_job(
     try:
         job, created = jobs.enqueue(db, session_id, owner, kind, payload)
     except jobs.JobConflict:
-        return _error(409, "job_conflict", "이 행사의 다른 초안 작업이 진행 중이에요.")
+        message = (
+            "이 행사의 다른 전사가 진행 중이에요."
+            if kind is JobKind.TRANSCRIBE
+            else "이 행사의 다른 초안 작업이 진행 중이에요."
+        )
+        return _error(409, "job_conflict", message)
     return JSONResponse(_body(job), status_code=202 if created else 200)
 
 
 @router.get("/sessions/{session_id}/jobs")
-def latest_job(session_id: str, kind: AIKind, owner: Owner, db: Db) -> dict[str, Any]:
-    job = jobs.latest_job(db, session_id, owner, JobKind(kind))
+def latest_job(
+    session_id: str, kind: QueueKind, owner: Owner, db: Db, asset_id: str | None = None
+) -> dict[str, Any]:
+    job = jobs.latest_job(
+        db, session_id, owner, JobKind(kind), asset_id if kind == "transcribe" else None
+    )
     return {"job": _body(job) if job else None}
 
 

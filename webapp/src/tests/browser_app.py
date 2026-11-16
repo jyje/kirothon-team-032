@@ -2,16 +2,19 @@
 
 import json
 import re
+from collections.abc import Iterator
 from pathlib import Path
 from secrets import token_hex
 from tempfile import TemporaryDirectory
 from time import sleep
+from typing import BinaryIO
 
 from argon2 import PasswordHasher
 
 from open_attendee.config import Secret, Settings
 from open_attendee.llm import LLMGateway
 from open_attendee.main import create_app
+from open_attendee.transcription import SpeechSegment
 
 _RECORD = "행사에서 배포 절차를 확인했어요."
 _data = TemporaryDirectory(prefix="open-attendee-browser-")
@@ -55,6 +58,13 @@ def _answer(prompt: str) -> str:
     )
 
 
+class _BrowserTranscriber:
+    def transcribe(self, audio: BinaryIO) -> Iterator[SpeechSegment]:
+        if not audio.read(1):
+            raise ValueError("empty audio fixture")
+        yield SpeechSegment(100, 1500, _RECORD)
+
+
 app = create_app(
     Settings(
         owner_password_hash=Secret(
@@ -66,5 +76,6 @@ app = create_app(
         transcriber="fake",
     ),
     provider_factory=lambda: None,
+    transcriber=_BrowserTranscriber(),
 )
 app.state.llm_gateway = LLMGateway(_answer, name="browser-test")

@@ -34,8 +34,14 @@ export type Asset = {
 export type AssetList = {
   items: Asset[]
   limits: Record<string, number>
+  transcription_enabled: boolean
   recording_enabled: boolean
   recording_max_bytes: number
+}
+
+export type Transcript = {
+  completed: boolean
+  segments: { start_ms: number; end_ms: number; text: string }[]
 }
 
 export type ConsentRecord = {

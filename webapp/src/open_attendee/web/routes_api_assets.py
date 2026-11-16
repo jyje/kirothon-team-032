@@ -7,13 +7,14 @@ from collections.abc import Iterator
 from typing import Annotated, BinaryIO
 from urllib.parse import quote
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
 
+from open_attendee import transcript_jobs
 from open_attendee.assets import COUNT_LIMITS, SIZE_LIMITS
 from open_attendee.errors import ValidationFailed
-from open_attendee.models import Asset, AssetKind
-from open_attendee.web.deps import AppSettings, Assets, Owner
+from open_attendee.models import Asset, AssetKind, AssetStatus
+from open_attendee.web.deps import AppSettings, Assets, Db, Owner, Sessions
 
 router = APIRouter(prefix="/api")
 
@@ -62,7 +63,7 @@ def _stream(handle: BinaryIO) -> Iterator[bytes]:
 
 @router.get("/sessions/{session_id}/assets")
 def list_assets(
-    session_id: str, owner: Owner, assets: Assets, settings: AppSettings
+    session_id: str, owner: Owner, assets: Assets, settings: AppSettings, request: Request
 ) -> dict[str, object]:
     assets.relink_photos(owner, session_id)  # 메모가 늘거나 줄어도 자동 연결을 최신으로 맞춘다
     counts = assets.chunk_counts(session_id)
@@ -73,6 +74,7 @@ def list_assets(
         ],
         "limits": {kind.value: limit for kind, limit in COUNT_LIMITS.items()},
         "recording_enabled": recording_enabled(settings),
+        "transcription_enabled": request.app.state.transcriber is not None,
         "recording_max_bytes": SIZE_LIMITS[AssetKind.RECORDING],
     }
 
@@ -104,6 +106,21 @@ def upload_asset(
         assets.relink_photos(owner, session_id)  # 업로드 직후 연결을 계산한다
         created = assets.get(owner, session_id, created.id)
     return _asset_body(created)
+
+
+@router.get("/sessions/{session_id}/assets/{asset_id}/transcript")
+def read_transcript(
+    session_id: str, asset_id: str, owner: Owner, sessions: Sessions, db: Db
+) -> dict[str, object]:
+    sessions.get(owner, session_id)
+    asset = transcript_jobs.get_audio(db, session_id, asset_id)
+    return {
+        "completed": asset.status in (AssetStatus.READY, AssetStatus.ORIGINAL_DELETED),
+        "segments": [
+            {"start_ms": s.start_ms, "end_ms": s.end_ms, "text": s.text}
+            for s in transcript_jobs.list_segments(db, asset_id)
+        ],
+    }
 
 
 @router.delete("/sessions/{session_id}/assets/{asset_id}", status_code=204)
