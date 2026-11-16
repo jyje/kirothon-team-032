@@ -8,6 +8,7 @@
 - 로컬 전사기가 설정된 환경에서는 녹음의 시간 구간을 보고 요약·초안의 출처로 사용할 수 있어요. [#70](https://github.com/jyje/open-attendee/issues/70)
 - 녹음이 켜진 환경에서는 자료 화면에서 행사 동의를 선택해 브라우저로 녹음하고 저장할 수 있어요. [#67](https://github.com/jyje/open-attendee/issues/67)
 - 자료 화면에서 행사별 녹음 동의를 저장하고 철회할 수 있어요. [#64](https://github.com/jyje/open-attendee/issues/64)
+- 사진마다 얼굴 후보를 확인하고 직접 보완한 영역을 흐리게 처리할 수 있어요. [#74](https://github.com/jyje/open-attendee/issues/74)
 - 자료 업로드: 키보드로 사진·발표자료·참고자료의 파일 선택을 열 수 있어요. [#36](https://github.com/jyje/open-attendee/issues/36)
 - 승인한 초안에서 마지막 필기 수정이나 자료 추가부터 승인까지의 경과 시간을 확인할 수 있어요. [#61](https://github.com/jyje/open-attendee/issues/61)
 - 요약 출처에는 자료 종류와 위치를 한 번씩 표시해요. [#49](https://github.com/jyje/open-attendee/issues/49)
