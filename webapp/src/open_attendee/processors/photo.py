@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import math
 import re
 import warnings
 from bisect import bisect_left
@@ -19,10 +20,11 @@ from struct import error as struct_error
 from typing import Final
 
 import pillow_heif
-from PIL import Image, ImageCms, ImageFile, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageCms, ImageFile, ImageFilter, ImageOps, UnidentifiedImageError
 
 from open_attendee.errors import ValidationFailed
 from open_attendee.models import Asset, MemoBlock
+from open_attendee.processors.face_detection import PhotoRegion
 
 pillow_heif.register_heif_opener()
 
@@ -149,6 +151,30 @@ class PhotoProcessor:
 
         oriented.thumbnail((MAX_LONG_SIDE, MAX_LONG_SIDE), Image.Resampling.LANCZOS)
         main = _clean_copy(oriented, png=keep_png)
+        return self._render(main, keep_png, captured_at)
+
+    def blur(self, raw: bytes, regions: list[PhotoRegion]) -> SanitizedPhoto:
+        with Image.open(io.BytesIO(raw)) as image:
+            keep_png = image.format == "PNG"
+            main = _clean_copy(image, png=keep_png)
+        for region in regions:
+            box = (
+                math.floor(region.left * main.width),
+                math.floor(region.top * main.height),
+                math.ceil(region.right * main.width),
+                math.ceil(region.bottom * main.height),
+            )
+            patch = main.crop(box)
+            radius = max(6, max(patch.size) / 6)
+            main.paste(patch.filter(ImageFilter.GaussianBlur(radius)), box)
+        return self._render(main, keep_png, None)
+
+    @staticmethod
+    def _render(
+        main: Image.Image,
+        keep_png: bool,
+        captured_at: datetime | None,
+    ) -> SanitizedPhoto:
         data = _encode(main, png=keep_png)
 
         thumb_src = main.copy()
