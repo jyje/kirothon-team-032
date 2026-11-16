@@ -13,7 +13,7 @@ from fastapi.responses import Response, StreamingResponse
 from open_attendee import transcript_jobs
 from open_attendee.assets import COUNT_LIMITS, SIZE_LIMITS
 from open_attendee.errors import ValidationFailed
-from open_attendee.models import Asset, AssetKind, AssetStatus
+from open_attendee.models import Asset, AssetKind
 from open_attendee.web.deps import AppSettings, Assets, Db, Owner, Sessions
 
 router = APIRouter(prefix="/api")
@@ -115,7 +115,8 @@ def read_transcript(
     sessions.get(owner, session_id)
     asset = transcript_jobs.get_audio(db, session_id, asset_id)
     return {
-        "completed": asset.status in (AssetStatus.READY, AssetStatus.ORIGINAL_DELETED),
+        "completed": asset.status in transcript_jobs.TRANSCRIBED_STATUSES,
+        "asset_status": asset.status.value,
         "segments": [
             {"start_ms": s.start_ms, "end_ms": s.end_ms, "text": s.text}
             for s in transcript_jobs.list_segments(db, asset_id)
@@ -166,7 +167,11 @@ def _file_response(
     headers = {
         "Content-Disposition": _content_disposition(name),  # 브라우저가 열지 않고 내려받게 한다
         "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "private, max-age=3600",
+        "Cache-Control": (
+            "private, no-store"
+            if asset.kind in transcript_jobs.AUDIO_KINDS
+            else "private, max-age=3600"
+        ),
     }
     media_type = "image/jpeg" if thumbnail else asset.mime
     if not thumbnail:

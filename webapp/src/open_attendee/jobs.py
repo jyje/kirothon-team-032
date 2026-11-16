@@ -16,7 +16,15 @@ from sqlmodel import Session, col, select
 from open_attendee import drafts, transcript_jobs
 from open_attendee.errors import ConsentRequired, NotFound, ValidationFailed
 from open_attendee.llm import LLMError, LLMGateway
-from open_attendee.models import EventSession, Job, JobKind, JobStatus, Template, utcnow
+from open_attendee.models import (
+    AssetStatus,
+    EventSession,
+    Job,
+    JobKind,
+    JobStatus,
+    Template,
+    utcnow,
+)
 from open_attendee.pipeline import summary
 from open_attendee.transcription import TranscriberUnavailable
 
@@ -35,12 +43,14 @@ class JobConflict(Exception):
     """다른 템플릿의 작업이 이미 진행 중이다."""
 
 
-def _require_owner(db: Session, session_id: str, owner_id: str) -> None:
-    owned = select(EventSession.id).where(
+def _require_owner(db: Session, session_id: str, owner_id: str) -> EventSession:
+    query = select(EventSession).where(
         EventSession.id == session_id, EventSession.owner_id == owner_id
     )
-    if db.exec(owned).first() is None:
+    event = db.exec(query).first()
+    if event is None:
         raise NotFound
+    return event
 
 
 def latest_job(
@@ -112,7 +122,8 @@ def claim_next(engine: Engine, kinds: tuple[JobKind, ...] = AI_KINDS) -> Job | N
         db.rollback()
         db.connection().exec_driver_sql("BEGIN IMMEDIATE")
         for job in db.exec(select(Job).where(match, stale)):
-            job.status = JobStatus.FAILED if job.attempts >= MAX_ATTEMPTS else JobStatus.QUEUED
+            exhausted = job.kind is not JobKind.DELETE_AUDIO and job.attempts >= MAX_ATTEMPTS
+            job.status = JobStatus.FAILED if exhausted else JobStatus.QUEUED
             job.last_error = "worker_interrupted"
             job.claimed_by = None
             job.claimed_at = None
@@ -145,7 +156,7 @@ def _update_claim(db: Session, job: Job, **values: object) -> bool:
 
 
 def _finish_failed(engine: Engine, job: Job, code: str, *, retry: bool) -> None:
-    retry = retry and job.attempts < MAX_ATTEMPTS
+    retry = retry and (job.kind is JobKind.DELETE_AUDIO or job.attempts < MAX_ATTEMPTS)
     with Session(engine) as db:
         _update_claim(
             db,
@@ -154,7 +165,7 @@ def _finish_failed(engine: Engine, job: Job, code: str, *, retry: bool) -> None:
             claimed_at=None,
             claimed_by=None,
             last_error=code,
-            run_after=utcnow() + timedelta(seconds=2**job.attempts if retry else 0),
+            run_after=utcnow() + timedelta(seconds=2 ** min(job.attempts, 8) if retry else 0),
         )
         db.commit()
 
@@ -182,7 +193,7 @@ def _process_transcription(
     with Session(engine) as db:
         # 철회/삭제와 결과 저장을 같은 SQLite 쓰기 잠금으로 순서화한다.
         db.connection().exec_driver_sql("BEGIN IMMEDIATE")
-        _require_owner(db, job.session_id, job.owner_id)
+        event = _require_owner(db, job.session_id, job.owner_id)
         asset = transcript_jobs.get_audio(db, job.session_id, asset_id)
         if _update_claim(
             db,
@@ -193,7 +204,36 @@ def _process_transcription(
             last_error=None,
             payload={**job.payload, "result_id": asset_id},
         ):
-            transcript_jobs.save_segments(db, asset, segments)
+            if transcript_jobs.save_segments(db, asset, segments, retain_audio=event.retain_audio):
+                db.add(
+                    Job(
+                        session_id=job.session_id,
+                        owner_id=job.owner_id,
+                        kind=JobKind.DELETE_AUDIO,
+                        payload={"asset_id": asset_id},
+                    )
+                )
+            db.commit()
+
+
+def _remove_original(engine: Engine, job: Job, runner: transcript_jobs.TranscriptionRunner) -> None:
+    asset_id = job.payload["asset_id"]
+    with Session(engine) as db:
+        _require_owner(db, job.session_id, job.owner_id)
+        asset = transcript_jobs.get_audio(db, job.session_id, asset_id, check_consent=False)
+        key = asset.blob_key if asset.status is AssetStatus.ORIGINAL_DELETE_PENDING else None
+    if key:
+        runner.blobs.delete(key)
+    with Session(engine) as db:
+        db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+        asset = transcript_jobs.get_audio(db, job.session_id, asset_id, check_consent=False)
+        if _update_claim(
+            db, job, status=JobStatus.DONE, claimed_by=None, claimed_at=None, last_error=None
+        ):
+            if asset.status is AssetStatus.ORIGINAL_DELETE_PENDING and asset.blob_key == key:
+                asset.blob_key = None
+                asset.status = AssetStatus.ORIGINAL_DELETED
+                db.add(asset)
             db.commit()
 
 
@@ -207,6 +247,9 @@ def process_job(
     heartbeat = Thread(target=_heartbeat, args=(engine, job, stop), daemon=True)
     heartbeat.start()
     try:
+        if job.kind is JobKind.DELETE_AUDIO and transcription is not None:
+            _remove_original(engine, job, transcription)
+            return
         if job.kind is JobKind.TRANSCRIBE:
             if transcription is None:
                 _finish_failed(engine, job, "transcriber_not_configured", retry=False)
@@ -265,7 +308,12 @@ def worker_loop(
     stop: Event,
     transcription: transcript_jobs.TranscriptionRunner | None = None,
 ) -> None:
-    kinds = AI_KINDS if transcription is None else (JobKind.TRANSCRIBE,)
+    if transcription is None:
+        kinds = AI_KINDS
+    elif transcription.transcriber is None:
+        kinds = (JobKind.DELETE_AUDIO,)
+    else:
+        kinds = (JobKind.TRANSCRIBE, JobKind.DELETE_AUDIO)
     while not stop.is_set():
         try:
             job = claim_next(engine, kinds)

@@ -12,6 +12,7 @@ export type Block = { id: string; position: number; text: string; revision: numb
 
 export type SessionDetail = {
   id: string
+  retain_audio: boolean
   title: string
   event_date: string | null
   blocks: Block[]
@@ -41,6 +42,7 @@ export type AssetList = {
 
 export type Transcript = {
   completed: boolean
+  asset_status: string
   segments: { start_ms: number; end_ms: number; text: string }[]
 }
 

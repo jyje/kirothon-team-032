@@ -23,6 +23,7 @@ class SessionCreate(BaseModel):
 class SessionPatch(BaseModel):
     title: str | None = None
     event_date: date | None = Field(default=None)
+    retain_audio: bool | None = None
 
 
 class BlockSave(BaseModel):
@@ -39,6 +40,7 @@ def session_json(event: EventSession) -> dict[str, Any]:
         "id": event.id,
         "title": event.title,
         "event_date": event.event_date.isoformat() if event.event_date else None,
+        "retain_audio": event.retain_audio,
         "created_at": _iso(event.created_at),
         "updated_at": _iso(event.updated_at),
     }
@@ -92,6 +94,8 @@ def update_session(
         kwargs["title"] = body.title
     if "event_date" in fields:
         kwargs["event_date"] = body.event_date
+    if body.retain_audio is not None:
+        kwargs["retain_audio"] = body.retain_audio
     return session_json(sessions.update(owner, session_id, **kwargs))
 
 
