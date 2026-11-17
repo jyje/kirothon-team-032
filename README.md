@@ -206,6 +206,8 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 
 자료 화면에서 **전사 후 음성 원본 보관**을 행사별로 선택합니다. 기본값은 삭제이며, 전사 구간이 저장된 뒤 원본 삭제를 별도 작업으로 실행합니다. [#71](https://github.com/jyje/open-attendee/issues/71)
 
+[데이터 보관과 삭제 안내](docs/data-retention.md)에 자료별 저장·삭제 동작, 백업과 S3 이전 버전, 운영자가 정할 보관기한을 정리했습니다. [#84](https://github.com/jyje/open-attendee/issues/84)
+
 **자료**에서 사진의 **얼굴 확인**을 열어 자동 후보를 검토하고 필요한 영역을 직접 보완할 수 있습니다. 확인한 영역의 흐림은 저장 사진과 축소판 모두에 적용됩니다. [#74](https://github.com/jyje/open-attendee/issues/74)
 
 웹앱의 요약과 초안은 SQLite 작업 큐에서 실행됩니다. 화면은 서버 전송 이벤트(SSE)로 상태를 갱신하고, 새로고침하면 대기 중이거나 실행 중인 작업을 다시 연결합니다. 워커는 실패한 작업을 최대 세 번까지 시도하며, 중단된 작업은 임대가 만료되면 회수합니다. [#47](https://github.com/jyje/open-attendee/issues/47)
@@ -230,7 +232,6 @@ AI 문장을 수정하면 기존 연결 출처를 다시 확인합니다. 판정
 **로드맵 (아직 반영하지 않음)**
 - 실제 기기의 장시간 마이크 녹음과 중단 복구 검증. [#68](https://github.com/jyje/open-attendee/issues/68)
 - 수작업과 앱의 정리 시간 및 결과 품질 비교. [측정 절차와 합성 자료](docs/validation/event-summary-benchmark.md)를 준비했고, 사람의 작업 시간과 품질 측정이 남아 있습니다. [#62](https://github.com/jyje/open-attendee/issues/62)
-- 데이터 보관 기간과 삭제 정책. [#84](https://github.com/jyje/open-attendee/issues/84)
 - 여러 사용자와 공유, AWS GPU 전사. 이번 범위 밖입니다.
 
 ---
