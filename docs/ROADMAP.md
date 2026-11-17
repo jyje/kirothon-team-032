@@ -33,12 +33,8 @@
 |---|---|---|
 | 행사 정리 시간 비교 | 측정 대기 | [측정 절차와 합성 자료](validation/event-summary-benchmark.md)로 사람의 수작업과 앱 사용을 비교해요. [#62](https://github.com/jyje/open-attendee/issues/62) |
 | 실제 기기의 장시간 마이크 녹음 | 실기기 검증 대기 | [합성 마이크 결과와 실기기 절차](validation/recording-devices.md)로 긴 캡처와 중단 복구를 확인해요. [#68](https://github.com/jyje/open-attendee/issues/68) |
-| macOS (맥북) 지원 | 예정 | 지금은 웹앱만 제공해요. |
-| iOS 지원 | 예정 | 지금은 웹앱만 제공해요. |
-| AWS EKS 레시피 | 예정 | 같은 Helm 차트를 EKS에 올리는 방법을 정리해요. |
-| AWS ECS 레시피 | 예정 | Helm을 쓰지 않으니 작업 정의(task definition)를 새로 만들어요. |
 
-## 지금 하지 않는 것
+## 장기 검토
 
-- 맥북, iOS 앱 빌드와 배포.
-- EKS, ECS 배포 파일.
+- macOS와 iOS 네이티브 앱 빌드·배포.
+- AWS EKS의 Helm 배포 레시피와 AWS ECS 작업 정의.
