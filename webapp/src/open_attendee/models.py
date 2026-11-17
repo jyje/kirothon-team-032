@@ -4,7 +4,7 @@
 소유자에 묶인다. 서비스 계층은 조회와 변경을 항상 `owner_id`로 한정한다.
 
 - 직접: `EventSession`, `Job`, `Template`(내장 템플릿은 `owner_id=None`)
-- `session_id`로: `MemoBlock`, `Asset`, `ConsentRecord`, `Draft`, `LiveSummary`
+- `session_id`로: `MemoBlock`, `Asset`, `ConsentRecord`, `Draft`, `LiveSummary`, `RecordingUpload`
 - `asset_id`로: `TranscriptSegment`, `DocChunk` (자료 -> 세션)
 - `draft_id`로: `Fact`, `Sentence` (초안 -> 세션)
 
@@ -227,6 +227,12 @@ class Asset(SQLModel, table=True):
         default=AssetStatus.STORED, sa_column=enum_column(AssetStatus, default=AssetStatus.STORED)
     )
     created_at: datetime = Field(default_factory=utcnow, sa_column=utc_column())
+
+
+class RecordingUpload(SQLModel, table=True):
+    session_id: str = Field(primary_key=True)
+    id: str = Field(primary_key=True)
+    asset_id: str
 
 
 class ConsentRecord(SQLModel, table=True):

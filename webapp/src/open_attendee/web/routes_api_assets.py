@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import UUID4, BaseModel, Field
 
 from open_attendee import transcript_jobs
 from open_attendee.assets import COUNT_LIMITS, SIZE_LIMITS, PhotoRevisionChanged
@@ -96,6 +96,7 @@ def upload_asset(
     file: Annotated[UploadFile, File()],
     consent_id: Annotated[str, Form()] = "",
     solo_voice: Annotated[bool, Form()] = False,
+    recording_upload_id: Annotated[UUID4 | None, Form()] = None,
 ) -> dict[str, object]:
     try:
         asset_kind = AssetKind(kind)
@@ -109,6 +110,7 @@ def upload_asset(
         file.file,
         consent_id=consent_id.strip() or None,
         solo_voice=solo_voice,
+        recording_upload_id=recording_upload_id.hex if recording_upload_id else None,
     )
     if created.kind is AssetKind.PHOTO:
         assets.relink_photos(owner, session_id)  # 업로드 직후 연결을 계산한다
