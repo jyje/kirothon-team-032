@@ -79,6 +79,14 @@ async function start() {
     const current: Capture = { recorder, consentId }
     const chunks: Blob[] = []
     let size = 0
+    let interrupted = false
+    for (const track of stream.getAudioTracks()) {
+      track.addEventListener('ended', () => {
+        if (capture !== current || status.value !== 'recording') return
+        interrupted = true
+        stop()
+      }, { once: true })
+    }
     recorder.ondataavailable = ({ data }) => {
       if (capture !== current || data.size === 0) return
       size += data.size
@@ -95,16 +103,20 @@ async function start() {
     }
     recorder.onerror = () => {
       if (capture !== current) return
-      error.value = '마이크 녹음이 중단됐어요.'
+      interrupted = true
       release(recorder.stream)
     }
     recorder.onstop = () => {
       release(recorder.stream)
       if (capture !== current) return
+      // 트랙 종료 이벤트보다 녹음기의 종료 콜백이 먼저 도착할 수도 있다.
+      interrupted ||= status.value === 'recording'
       capture = null
       status.value = 'idle'
       if (!size) {
-        if (!error.value) error.value = '저장할 녹음이 없어요. 다시 녹음해 주세요.'
+        error.value = interrupted
+          ? '녹음이 중단됐어요. 마이크를 확인하고 다시 녹음해 주세요.'
+          : '저장할 녹음이 없어요. 다시 녹음해 주세요.'
         return
       }
       const extension = mime === 'audio/mp4' ? 'm4a' : 'webm'
@@ -113,6 +125,9 @@ async function start() {
         file: new File(chunks, filename, { type: recorder.mimeType || mime }),
         consentId,
         uploadId: crypto.randomUUID(),
+      }
+      if (interrupted) {
+        error.value = '녹음이 중단됐어요. 중단 전까지 기록한 부분을 저장할 수 있어요.'
       }
     }
 
