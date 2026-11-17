@@ -24,6 +24,7 @@
 - 환경별 Helm 값 파일에서 개발·스테이징·운영 이미지를 선택해요. [#59](https://github.com/jyje/open-attendee/issues/59)
 - 배포 방식: **k8s + Helm 네이티브**. 차트는 `helm/`, 이미지는 `docker/`에 있어요.
 - CI와 이미지 빌드의 GitHub Actions는 Node.js 24 런타임을 사용해요. [#44](https://github.com/jyje/open-attendee/issues/44)
+- 한국 행사 녹음, 전사, 모델 전송과 공개 관련 [운영 안내](recording-privacy-kr.md)를 정리했어요. 배포별 계약과 데이터 처리 위치를 확인해요. [#85](https://github.com/jyje/open-attendee/issues/85)
 
 ## 예정
 
@@ -31,6 +32,7 @@
 |---|---|---|
 | 행사 정리 시간 비교 | 측정 대기 | [측정 절차와 합성 자료](validation/event-summary-benchmark.md)로 사람의 수작업과 앱 사용을 비교해요. [#62](https://github.com/jyje/open-attendee/issues/62) |
 | 실제 기기의 장시간 마이크 녹음 | 예정 | 긴 캡처, 화면 잠금 및 연결 중단 시 동작을 확인해요. [#68](https://github.com/jyje/open-attendee/issues/68) |
+| 데이터 보관 기간과 삭제 정책 | 예정 | 자료 종류별 보관과 삭제 조건을 정리해요. [#84](https://github.com/jyje/open-attendee/issues/84) |
 | macOS (맥북) 지원 | 예정 | 지금은 웹앱만 제공해요. |
 | iOS 지원 | 예정 | 지금은 웹앱만 제공해요. |
 | AWS EKS 레시피 | 예정 | 같은 Helm 차트를 EKS에 올리는 방법을 정리해요. |
