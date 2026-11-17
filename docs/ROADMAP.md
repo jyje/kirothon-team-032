@@ -32,7 +32,7 @@
 | 항목 | 상태 | 비고 |
 |---|---|---|
 | 행사 정리 시간 비교 | 측정 대기 | [측정 절차와 합성 자료](validation/event-summary-benchmark.md)로 사람의 수작업과 앱 사용을 비교해요. [#62](https://github.com/jyje/open-attendee/issues/62) |
-| 실제 기기의 장시간 마이크 녹음 | 예정 | 긴 캡처, 화면 잠금 및 연결 중단 시 동작을 확인해요. [#68](https://github.com/jyje/open-attendee/issues/68) |
+| 실제 기기의 장시간 마이크 녹음 | 실기기 검증 대기 | [합성 마이크 결과와 실기기 절차](validation/recording-devices.md)로 긴 캡처와 중단 복구를 확인해요. [#68](https://github.com/jyje/open-attendee/issues/68) |
 | macOS (맥북) 지원 | 예정 | 지금은 웹앱만 제공해요. |
 | iOS 지원 | 예정 | 지금은 웹앱만 제공해요. |
 | AWS EKS 레시피 | 예정 | 같은 Helm 차트를 EKS에 올리는 방법을 정리해요. |
