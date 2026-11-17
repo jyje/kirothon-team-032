@@ -196,6 +196,8 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 
 녹음이 켜진 환경의 **자료** 화면에서 행사 동의를 선택하면 브라우저로 녹음을 시작하고 중지한 뒤 저장할 수 있습니다. [#67](https://github.com/jyje/open-attendee/issues/67)
 
+녹음이 서버에 저장된 뒤 응답이 끊겨 **녹음 저장**을 다시 눌러도 같은 녹음은 한 건으로 유지됩니다. 장시간 녹음의 네트워크 중단 검증에서 발견한 문제입니다. [#79](https://github.com/jyje/open-attendee/issues/79)
+
 로컬 전사기가 설정된 환경에서는 **자료**에서 저장한 음성의 전사를 요청하고 시간 구간을 볼 수 있습니다. 전사 구간은 요약과 초안의 출처로 사용할 수 있습니다. [#70](https://github.com/jyje/open-attendee/issues/70)
 
 자료 화면에서 **전사 후 음성 원본 보관**을 행사별로 선택합니다. 기본값은 삭제이며, 전사 구간이 저장된 뒤 원본 삭제를 별도 작업으로 실행합니다. [#71](https://github.com/jyje/open-attendee/issues/71)
