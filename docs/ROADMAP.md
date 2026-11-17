@@ -8,6 +8,9 @@
 - 로컬 전사기가 설정된 환경에서는 녹음의 시간 구간을 보고 요약·초안의 출처로 사용할 수 있어요. [#70](https://github.com/jyje/open-attendee/issues/70)
 - 녹음이 켜진 환경에서는 자료 화면에서 행사 동의를 선택해 브라우저로 녹음하고 저장할 수 있어요. [#67](https://github.com/jyje/open-attendee/issues/67)
 - 자료 화면에서 행사별 녹음 동의를 저장하고 철회할 수 있어요. [#64](https://github.com/jyje/open-attendee/issues/64)
+- 녹음 동의를 철회하면 해당 녹음과 전사, 그 음성을 입력으로 사용한 요약과 초안의 접근을 제한해요. 남은 자료로 결과를 다시 만들 수 있어요. [#65](https://github.com/jyje/open-attendee/issues/65)
+- 업로드 응답 유실 후 같은 녹음의 저장을 재시도해도 첨부가 한 건만 남아요. [#79](https://github.com/jyje/open-attendee/issues/79)
+- 마이크 녹음이 예기치 않게 끝나면 중단 안내를 보여 주고, 중단 전에 녹음된 부분을 저장할 수 있어요. [#81](https://github.com/jyje/open-attendee/issues/81)
 - 사진마다 얼굴 후보를 확인하고 직접 보완한 영역을 흐리게 처리할 수 있어요. [#74](https://github.com/jyje/open-attendee/issues/74)
 - 자료 업로드: 키보드로 사진·발표자료·참고자료의 파일 선택을 열 수 있어요. [#36](https://github.com/jyje/open-attendee/issues/36)
 - 승인한 초안에서 마지막 필기 수정이나 자료 추가부터 승인까지의 경과 시간을 확인할 수 있어요. [#61](https://github.com/jyje/open-attendee/issues/61)
@@ -27,7 +30,6 @@
 | 항목 | 상태 | 비고 |
 |---|---|---|
 | 행사 정리 시간 비교 | 예정 | 같은 자료와 결과물 기준으로 수작업과 앱 사용 시간을 비교해요. [#62](https://github.com/jyje/open-attendee/issues/62) |
-| 철회 전 녹음과 파생 자료 처리 | 예정 | 이미 보관된 자료의 접근과 보관 범위를 정해요. [#65](https://github.com/jyje/open-attendee/issues/65) |
 | 실제 기기의 장시간 마이크 녹음 | 예정 | 긴 캡처, 화면 잠금 및 연결 중단 시 동작을 확인해요. [#68](https://github.com/jyje/open-attendee/issues/68) |
 | macOS (맥북) 지원 | 예정 | 지금은 웹앱만 제공해요. |
 | iOS 지원 | 예정 | 지금은 웹앱만 제공해요. |
