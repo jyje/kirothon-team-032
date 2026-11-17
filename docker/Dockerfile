@@ -17,6 +17,7 @@ RUN npm run build
 
 # --- 2) 서버 의존성 -------------------------------------------------------
 FROM python:${PYTHON_VERSION}-slim AS backend
+ARG INSTALL_STT=false
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 # webapp은 ../../provider-manager/src 를 경로 의존성으로 쓰므로 같은 상대 위치를 지킨다.
@@ -24,9 +25,11 @@ WORKDIR /app
 COPY provider-manager/src ./provider-manager/src
 WORKDIR /app/webapp/src
 COPY webapp/src/pyproject.toml webapp/src/uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN if [ "$INSTALL_STT" = "true" ]; then set -- --extra stt; fi \
+ && uv sync --frozen --no-dev --no-install-project "$@"
 COPY webapp/src/open_attendee ./open_attendee
-RUN uv sync --frozen --no-dev
+RUN if [ "$INSTALL_STT" = "true" ]; then set -- --extra stt; fi \
+ && uv sync --frozen --no-dev "$@"
 
 # --- 3) 실행 이미지 -------------------------------------------------------
 FROM python:${PYTHON_VERSION}-slim AS runtime
@@ -40,6 +43,7 @@ WORKDIR /app/webapp/src
 ENV PATH="/app/webapp/src/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     FRONTEND_DIST=/app/webapp/frontend/dist \
+    HF_HOME=/data/huggingface \
     DATA_DIR=/data
 # 이미지가 어느 커밋에서 왔는지 남긴다. 값이 매번 바뀌므로 무거운 층 뒤에 둔다.
 ARG SOURCE_URL=https://github.com/jyje/open-attendee

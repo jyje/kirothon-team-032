@@ -12,5 +12,5 @@
     "types": ["vite/client", "node"],
     "paths": { "@/*": ["./src/*"], "@design/*": ["../../design-system/*"] }
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.vue", "e2e/**/*.ts", "vite.config.ts", "playwright.config.ts"]
 }

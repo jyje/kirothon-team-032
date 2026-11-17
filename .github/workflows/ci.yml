@@ -18,8 +18,8 @@ jobs:
       run:
         working-directory: webapp/src
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: "3.13"
           enable-cache: true
@@ -30,6 +30,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest -q
+      - run: uv run --frozen --extra stt pytest -q tests/test_transcription.py
   provider-manager:
     name: provider-manager (ruff, pytest)
     runs-on: ubuntu-24.04
@@ -37,8 +38,8 @@ jobs:
       run:
         working-directory: provider-manager/src
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: "3.13"
           enable-cache: true
@@ -53,8 +54,8 @@ jobs:
       run:
         working-directory: webapp/frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -65,6 +66,61 @@ jobs:
     name: helm lint
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - run: helm lint helm --set image.tag=ci
       - run: helm template ci helm --set image.tag=ci --set ingress.enabled=true > /dev/null
+      - name: Verify environment image repositories
+        run: |
+          for environment in dev stg prd; do
+            values="helm/values-${environment}.yaml"
+            image="ghcr.io/jyje/open-attendee"
+            if [ "$environment" != prd ]; then
+              image="$image-$environment"
+            fi
+            helm lint helm -f "$values" --set image.tag=ci
+            rendered="$(helm template ci helm -f "$values" --set image.tag=ci)"
+            if [[ "$rendered" != *"image: \"$image:ci\""* ]]; then
+              echo "Unexpected image in $values"
+              exit 1
+            fi
+          done
+      - name: Verify recording ingress limit
+        run: |
+          normal="$(helm template ci helm --set image.tag=ci --set ingress.enabled=true)"
+          recording="$(helm template ci helm --set image.tag=ci --set ingress.enabled=true \
+            --set config.FEATURE_RECORDING=true --set config.TRANSCRIBER=fake)"
+          [[ "$normal" == *'proxy-body-size: "32m"'* ]]
+          [[ "$recording" == *'proxy-body-size: "2050m"'* ]]
+  browser:
+    name: browser (Chromium E2E)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: webapp/frontend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: webapp/frontend/package-lock.json
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: |
+            webapp/src/uv.lock
+            provider-manager/src/uv.lock
+      - run: uv sync --frozen
+        working-directory: webapp/src
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v7.0.2
+        if: failure()
+        with:
+          name: browser-test-results
+          path: webapp/frontend/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

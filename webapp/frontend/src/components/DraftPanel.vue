@@ -1,57 +1,75 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useAiJob, type AiJob } from '@/aiJobs'
 import { api, ApiError } from '@/api'
-import type { Draft, DraftResponse, DraftSentence } from '@/types'
+import type { Draft, DraftResponse, DraftSentence, TemplateInfo } from '@/types'
 
 const props = defineProps<{ sessionId: string }>()
 const base = computed(() => `/api/sessions/${props.sessionId}/draft`)
 
-type TemplateInfo = { id: string; name: string; sections: string[] }
 const templates = ref<TemplateInfo[]>([])
 const templateId = ref('builtin-blog')
 const draft = ref<Draft | null>(null)
+const consentBlocked = ref(false)
 const llmConfigured = ref<boolean | null>(null)
-const busy = ref(false)
 const error = ref('')
+const { busy, error: jobError, status, restore, submit } = useAiJob(props.sessionId, 'draft', loadResult)
 const notice = ref('')
 const editingId = ref('')
+const savingEdit = ref(false)
 const editText = ref('')
 const insightText = ref<Record<string, string>>({})
 
 const kindLabel: Record<string, string> = { memo: '메모', doc: '발표자료', reference: '참고자료', photo: '사진', transcript: '녹음' }
 const approved = computed(() => draft.value?.status === 'approved')
+const reviewElapsed = computed(() => {
+  const seconds = draft.value?.review_seconds
+  if (typeof seconds !== 'number') return null
+  const minutes = Math.floor(seconds / 60)
+  return minutes > 0 ? `${minutes}분 ${seconds % 60}초` : `${seconds}초`
+})
 
 function fail(e: unknown, fallback: string) {
   error.value = e instanceof ApiError ? e.message : fallback
 }
 
 async function load() {
-  const res = await api<DraftResponse>(base.value)
-  draft.value = res.draft
-  llmConfigured.value = res.llm_configured
-  templates.value = (await api<{ templates: TemplateInfo[] }>('/api/templates')).templates
+  try {
+    const res = await api<DraftResponse>(base.value)
+    draft.value = res.draft
+    consentBlocked.value = res.consent_blocked === true
+    llmConfigured.value = res.llm_configured
+    templates.value = (await api<{ templates: TemplateInfo[] }>('/api/templates')).templates
+  } catch (cause) {
+    fail(cause, '초안을 불러오지 못했어요.')
+  }
 }
 
-async function create() {
+async function loadResult(job: AiJob, restored: boolean) {
+  const res = await api<DraftResponse>(
+    restored ? base.value : `${base.value}?result_id=${job.result_id}`,
+  )
+  draft.value = res.draft
+  consentBlocked.value = res.consent_blocked === true
+  llmConfigured.value = res.llm_configured
+  editingId.value = ''
+  insightText.value = {}
+}
+
+function create() {
   error.value = ''
   notice.value = ''
-  busy.value = true
-  try {
-    const res = await api<DraftResponse>(base.value, { json: { template_id: templateId.value } })
-    draft.value = res.draft
-  } catch (e) {
-    fail(e, '서버에 연결하지 못했어요.')
-  } finally {
-    busy.value = false
-  }
+  return submit(templateId.value)
 }
 
 async function call(path: string, init: Parameters<typeof api>[1]) {
   error.value = ''
   try {
-    draft.value = (await api<Draft>(path, init)) as Draft
+    draft.value = await api<Draft>(path, init)
+    return true
   } catch (e) {
     fail(e, '요청에 실패했어요.')
+    return false
   }
 }
 
@@ -64,8 +82,15 @@ function startEdit(s: DraftSentence) {
   editText.value = s.text
 }
 async function saveEdit(s: DraftSentence) {
-  await call(sentenceUrl(s), { method: 'PATCH', json: { text: editText.value } })
-  editingId.value = ''
+  if (savingEdit.value) return
+  savingEdit.value = true
+  try {
+    if (await call(sentenceUrl(s), { method: 'PATCH', json: { text: editText.value } })) {
+      editingId.value = ''
+    }
+  } finally {
+    savingEdit.value = false
+  }
 }
 
 async function addInsight(sectionId: string) {
@@ -84,6 +109,7 @@ async function copyMarkdown() {
   notice.value = ''
   try {
     const res = await fetch(`/api/drafts/${draft.value!.id}/export.md`, { credentials: 'same-origin' })
+    if (!res.ok) throw new Error('내보내기 실패')
     await navigator.clipboard.writeText(await res.text())
     notice.value = '마크다운을 복사했어요.'
   } catch {
@@ -91,31 +117,38 @@ async function copyMarkdown() {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  await restore()
+})
 </script>
 
 <template>
   <section class="panel" aria-label="초안">
     <h2>초안</h2>
+    <p v-if="consentBlocked" class="hint" role="status">녹음 동의가 철회돼 이전 초안을 열 수 없어요. 남은 자료로 새 초안을 만들 수 있어요.</p>
     <div class="actions">
       <label v-if="templates.length" class="picker">
-        <span>템플릿</span>
-        <select v-model="templateId" :disabled="busy || approved">
+        <span id="draft-template-label">템플릿</span>
+        <select v-model="templateId" aria-labelledby="draft-template-label" :disabled="busy || approved">
           <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }} ({{ t.sections.join(' · ') }})</option>
         </select>
       </label>
-      <button class="btn btn-primary" type="button" :disabled="busy || llmConfigured === false || approved" @click="create">
-        {{ busy ? '초안을 만드는 중…' : draft ? '다시 만들기' : '초안 만들기' }}
+      <button class="btn btn-primary" type="button" :disabled="busy || llmConfigured !== true || approved" @click="create">
+        {{ draft ? '다시 만들기' : '초안 만들기' }}
       </button>
       <span v-if="llmConfigured === false" class="hint">AI 제공자가 설정되지 않았어요(API 키 필요).</span>
       <span v-else-if="!draft" class="hint">모든 문장에 출처가 붙고, 확인되지 않은 문장은 "미검증"으로 표시돼요.</span>
     </div>
-    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <p v-if="error || jobError" class="error" role="alert">{{ error || jobError }}</p>
+    <p v-if="status" class="hint" role="status">{{ status }}</p>
 
     <template v-if="draft">
       <p class="hint" role="status">
         <strong>{{ approved ? '승인됨' : '검토 중' }}</strong>
+        <template v-if="draft.template_name"> · 템플릿 {{ draft.template_name }}</template>
         <template v-if="!approved"> · 미검증 문장 {{ draft.unverified_count }}개</template>
+        <template v-if="approved && reviewElapsed"> · 마지막 기록부터 승인까지 {{ reviewElapsed }}</template>
         · AI가 만든 초안이에요. 출처를 확인하며 검토해 주세요.
       </p>
 
@@ -133,10 +166,11 @@ onMounted(load)
               <span v-if="s.verify_note && s.verify_status === 'unverified'" class="hint-dark">{{ s.verify_note }}</span>
             </div>
             <template v-if="editingId === s.id">
-              <textarea v-model="editText" rows="2" maxlength="1000" />
+              <p v-if="savingEdit" role="status">수정한 문장의 근거를 확인하는 중이에요.</p>
+              <textarea v-model="editText" aria-label="수정한 문장" rows="2" maxlength="1000" :disabled="savingEdit" />
               <div class="row">
-                <button class="btn btn-small" type="button" @click="saveEdit(s)">저장</button>
-                <button class="btn btn-small" type="button" @click="editingId = ''">취소</button>
+                <button class="btn btn-small" type="button" :disabled="savingEdit" @click="saveEdit(s)">저장</button>
+                <button class="btn btn-small" type="button" :disabled="savingEdit" @click="editingId = ''">취소</button>
               </div>
             </template>
             <template v-else>
@@ -164,12 +198,13 @@ onMounted(load)
       </article>
 
       <div class="actions">
-        <button v-if="!approved" class="btn btn-primary" type="button" :disabled="draft.unverified_count > 0" @click="approve">
+        <button v-if="!approved" class="btn btn-primary" type="button" :disabled="savingEdit || draft.unverified_count > 0" @click="approve">
           승인하기{{ draft.unverified_count ? ` (미검증 ${draft.unverified_count}개 남음)` : '' }}
         </button>
         <template v-else>
           <a class="btn" :href="`/api/drafts/${draft.id}/export.md`" download="open-attendee-draft.md">마크다운 내려받기</a>
-          <button class="btn" type="button" @click="copyMarkdown">복사</button>
+          <a class="btn" :href="`/api/drafts/${draft.id}/export.html`" download="open-attendee-draft.html">HTML 내려받기</a>
+          <button class="btn" type="button" @click="copyMarkdown">마크다운 복사</button>
         </template>
         <span v-if="notice" class="hint" role="status">{{ notice }}</span>
       </div>
@@ -183,8 +218,8 @@ h2 { margin: 0; font-family: var(--font-hand); font-weight: 400; letter-spacing:
 h3 { margin: 0 0 var(--space-3); font-size: 18px; }
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; }
 .actions a.btn { text-decoration: none; display: inline-block; }
-.picker { display: grid; gap: var(--space-1); font-size: var(--fs-hint); color: var(--text-muted-on-dark); }
-.picker select { font: 500 var(--fs-btn-seg) var(--font-body); color: var(--color-ink); background: var(--color-white); border: var(--border); border-radius: var(--radius-pill); padding: var(--space-2) var(--space-4); min-height: 44px; max-width: 100%; }
+.picker { display: grid; min-width: 0; max-width: 100%; gap: var(--space-1); font-size: var(--fs-hint); color: var(--text-muted-on-dark); }
+.picker select { font: 500 var(--fs-btn-seg) var(--font-body); color: var(--color-ink); background: var(--color-white); border: var(--border); border-radius: var(--radius-pill); padding: var(--space-2) var(--space-4); min-height: 44px; min-width: 0; max-width: 100%; text-overflow: ellipsis; }
 .hint { margin: 0; color: var(--color-lavender); font-size: var(--fs-hint); }
 .error { margin: 0; background: var(--color-purple-dark); border: var(--border); border-color: var(--color-kiro); border-radius: var(--radius-bubble); padding: var(--space-3) var(--space-4); }
 .section { display: grid; gap: var(--space-3); }

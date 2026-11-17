@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import os
 import tempfile
@@ -22,8 +23,12 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import BinaryIO, Final
+from uuid import uuid4
 
+import cv2
+from PIL import Image
 from sqlalchemy import delete, func
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from open_attendee.config import Settings
@@ -41,10 +46,14 @@ from open_attendee.models import (
     AssetStatus,
     DocChunk,
     EventSession,
+    Job,
+    JobKind,
     MemoBlock,
+    RecordingUpload,
     TranscriptSegment,
 )
-from open_attendee.processors.docs import DocExtractor
+from open_attendee.processors.docs import PPTX_MIME, DocExtractor
+from open_attendee.processors.face_detection import PhotoRegion, suggest_faces
 from open_attendee.processors.photo import PhotoProcessor, link_photos
 from open_attendee.storage import BlobStore, make_key
 
@@ -52,7 +61,7 @@ MB: Final = 1024 * 1024
 # 종류별 크기 상한(요구사항 8.3)과 세션당 개수 상한(3.1, 6.5, 7.2).
 SIZE_LIMITS: Final[dict[AssetKind, int]] = {
     AssetKind.PHOTO: 20 * MB,
-    AssetKind.SLIDES: 30 * MB,  # 발표자료 PDF는 가볍게 유지한다
+    AssetKind.SLIDES: 30 * MB,
     AssetKind.REFERENCE: 20 * MB,
     AssetKind.VOICE_MEMO: 50 * MB,
     AssetKind.RECORDING: 2048 * MB,
@@ -79,7 +88,6 @@ HEIC_MIME: Final = "image/heic"
 PDF_MIME: Final = "application/pdf"
 TEXT_MIME: Final = "text/plain"
 MARKDOWN_MIME: Final = "text/markdown"
-PPTX_MIME: Final = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
 _HEIC_BRANDS: Final = frozenset(
     {b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"hevm", b"hevs", b"mif1", b"msf1"}
@@ -87,7 +95,6 @@ _HEIC_BRANDS: Final = frozenset(
 _SNIFF_BYTES: Final = 8192
 _SPOOL_MEMORY: Final = 8 * MB
 _MARKDOWN_EXTENSIONS: Final = frozenset({".md", ".markdown"})
-_PPTX_HINT: Final = "PPTX 발표자료는 아직 받지 않아요. PDF로 내보내서 올려 주세요."
 
 
 # ---------------------------------------------------------------------------- 형식 판별
@@ -179,6 +186,10 @@ class OpenedBlob:
     stream: BinaryIO
 
 
+class PhotoRevisionChanged(Exception):
+    """열어 둔 검토 화면의 사진이 다른 요청에서 바뀌었다."""
+
+
 class AssetService:
     def __init__(
         self,
@@ -228,8 +239,13 @@ class AssetService:
     ) -> OpenedBlob:
         """저장된 파일을 연다. 원본이 지워진 자료는 `NotFound`."""
         asset = self.get(owner_id, session_id, asset_id)
-        if asset.blob_key is None or (thumbnail and asset.kind is not AssetKind.PHOTO):
+        if (
+            asset.blob_key is None
+            or asset.status is AssetStatus.ORIGINAL_DELETE_PENDING
+            or (thumbnail and asset.kind is not AssetKind.PHOTO)
+        ):
             raise NotFound("파일을 찾을 수 없어요.")
+        self.gate.require_consent(asset)
         key = asset.blob_key + THUMB_SUFFIX if thumbnail else asset.blob_key
         try:
             return OpenedBlob(asset, self.blobs.open(key))
@@ -257,6 +273,8 @@ class AssetService:
         stream: BinaryIO,
         consent_id: str | None = None,
         solo_voice: bool = False,
+        *,
+        recording_upload_id: str | None = None,
     ) -> Asset:
         """검사를 모두 통과한 파일만 저장한다.
 
@@ -267,6 +285,8 @@ class AssetService:
         """
         self._session(owner_id, session_id)
         label = KIND_LABELS[kind]
+        if recording_upload_id is not None and kind is not AssetKind.RECORDING:
+            raise ValidationFailed("녹음 저장 ID는 행사 녹음에만 사용할 수 있어요.")
         if kind is AssetKind.RECORDING and (
             not self.settings.feature_recording or self.settings.transcriber == "none"
         ):
@@ -285,6 +305,11 @@ class AssetService:
         else:
             asset.consent_id = None
 
+        if recording_upload_id is not None:
+            saved = self._uploaded_recording(asset, recording_upload_id)
+            if saved is not None:
+                return saved
+
         self._check_count(session_id, kind, label)
         with _bounded(stream, SIZE_LIMITS[kind], label) as (source, size):
             head = source.read(_SNIFF_BYTES)
@@ -298,7 +323,22 @@ class AssetService:
                 return self._store_photo(owner_id, asset, source)
             if kind in (AssetKind.SLIDES, AssetKind.REFERENCE):
                 return self._store_document(owner_id, asset, source)
+            if recording_upload_id is not None:
+                return self._store_recording(owner_id, asset, source, recording_upload_id)
             return self._store_audio(owner_id, asset, source)
+
+    def _uploaded_recording(self, asset: Asset, upload_id: str) -> Asset | None:
+        upload = self.db.get(RecordingUpload, (asset.session_id, upload_id))
+        if upload is None:
+            return None
+        saved = self.db.get(Asset, upload.asset_id)
+        if saved is None:
+            # 이미 지운 녹음을 늦게 도착한 재시도가 복원할 수 없다.
+            raise NotFound("이 요청으로 저장한 녹음이 삭제됐어요.")
+        if saved.consent_id != asset.consent_id or saved.display_name != asset.display_name:
+            raise ValidationFailed("이 녹음 저장 ID는 다른 녹음에 사용됐어요.")
+        self.gate.require_consent(saved)
+        return saved
 
     def _check_count(self, session_id: str, kind: AssetKind, label: str) -> None:
         limit = COUNT_LIMITS.get(kind)
@@ -326,12 +366,11 @@ class AssetService:
 
     def _store_document(self, owner_id: str, asset: Asset, source: BinaryIO) -> Asset:
         if not self.docs.supports(asset.mime, asset.kind):
-            if asset.mime == PPTX_MIME:
-                raise UnsupportedMediaType(_PPTX_HINT)
             raise UnsupportedMediaType(
                 f"{KIND_LABELS[asset.kind]}으로 올릴 수 없는 파일 형식이에요."
             )
         extraction = self.docs.extract(asset, source)  # 깨진 파일과 암호 PDF는 422
+        asset.page_count = extraction.page_count
         source.seek(0)
         asset.status = AssetStatus.READY
         key = make_key(owner_id, asset.session_id, asset.id)
@@ -342,6 +381,31 @@ class AssetService:
         key = make_key(owner_id, asset.session_id, asset.id)
         return self._commit(asset, {key: source})
 
+    def _store_recording(
+        self, owner_id: str, asset: Asset, source: BinaryIO, upload_id: str
+    ) -> Asset:
+        key = make_key(owner_id, asset.session_id, asset.id)
+        upload = RecordingUpload(session_id=asset.session_id, id=upload_id, asset_id=asset.id)
+        try:
+            with self._write_files({key: source}):
+                # 대용량 파일 저장이 끝난 뒤 짧게 쓰기를 잠그고 행사와 동의를 다시 확인한다.
+                self.db.rollback()
+                self.db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+                self._session(owner_id, asset.session_id)
+                self.gate.require_consent(asset)
+                asset.blob_key = key
+                self.db.add_all([asset, upload])
+                self.db.commit()
+        except IntegrityError:
+            # 동시 재시도가 이긴 경우 임시로 쓴 파일은 정리되고 먼저 저장한 자료를 반환한다.
+            self._session(owner_id, asset.session_id)
+            saved = self._uploaded_recording(asset, upload_id)
+            if saved is None:
+                raise
+            return saved
+        self.db.refresh(asset)
+        return asset
+
     def _commit(
         self,
         asset: Asset,
@@ -349,23 +413,101 @@ class AssetService:
         chunks: list[DocChunk] | None = None,
     ) -> Asset:
         """파일을 쓰고 DB에 기록한다. 어느 쪽이든 실패하면 쓴 파일을 지워 찌꺼기를 남기지 않는다."""
-        written: list[str] = []
-        try:
-            for key, content in blobs.items():
-                self.blobs.put(key, content)
-                written.append(key)
+        with self._write_files(blobs):
             asset.blob_key = next(iter(blobs))
             self.db.add(asset)
             self.db.add_all(chunks or [])
             self.db.commit()
+        self.db.refresh(asset)
+        return asset
+
+    @contextlib.contextmanager
+    def _write_files(self, blobs: dict[str, BinaryIO]) -> Iterator[None]:
+        written: list[str] = []
+        try:
+            for key, content in blobs.items():
+                written.append(key)
+                self.blobs.put(key, content)
+            yield
         except BaseException:
             self.db.rollback()
             for key in written:
                 with contextlib.suppress(OSError):
                     self.blobs.delete(key)
             raise
+
+    # ------------------------------------------------------------------ 사진 얼굴 확인
+
+    def review_photo(self, owner_id: str, session_id: str, asset_id: str) -> dict[str, object]:
+        asset, raw, key = self._photo_for_review(owner_id, session_id, asset_id)
+        with Image.open(io.BytesIO(raw)) as image:
+            try:
+                candidates = suggest_faces(image)
+                detection_available = True
+            except (cv2.error, OSError):
+                candidates = []
+                detection_available = False
+        return {
+            "revision": _photo_revision(key),
+            "regions": [region.model_dump() for region in candidates],
+            "detection_available": detection_available,
+            "confirmed": asset.face_check_confirmed,
+        }
+
+    def save_photo_review(
+        self,
+        owner_id: str,
+        session_id: str,
+        asset_id: str,
+        revision: str,
+        regions: list[PhotoRegion],
+    ) -> Asset:
+        _asset, raw, previous = self._photo_for_review(owner_id, session_id, asset_id)
+        if revision != _photo_revision(previous):
+            raise PhotoRevisionChanged
+        replacement: dict[str, BinaryIO] = {}
+        clean = self.photos.blur(raw, regions) if regions else None
+        if clean is not None:
+            current = make_key(owner_id, session_id, f"{asset_id}.photo-{uuid4().hex}")
+            replacement = {
+                current: io.BytesIO(clean.data),
+                current + THUMB_SUFFIX: io.BytesIO(clean.thumbnail),
+            }
+
+        # 먼저 두 파일을 생성하고, 이후 현재 사진 포인터를 한 번만 바꾼다.
+        with self._write_files(replacement):
+            self.db.rollback()
+            self.db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+            asset = self.get(owner_id, session_id, asset_id)
+            if asset.blob_key != previous:
+                raise PhotoRevisionChanged
+            if clean is not None:
+                asset.blob_key = next(iter(replacement))
+                asset.size_bytes = len(clean.data)
+                asset.faces_blurred = True
+                self.db.add(
+                    Job(
+                        session_id=session_id,
+                        owner_id=owner_id,
+                        kind=JobKind.DELETE_PHOTO_VERSION,
+                        payload={"asset_id": asset_id, "key": previous},
+                    )
+                )
+            asset.face_check_confirmed = True
+            self.db.add(asset)
+            self.db.commit()
         self.db.refresh(asset)
         return asset
+
+    def _photo_for_review(
+        self, owner_id: str, session_id: str, asset_id: str
+    ) -> tuple[Asset, bytes, str]:
+        asset = self.get(owner_id, session_id, asset_id)
+        if asset.kind is not AssetKind.PHOTO or asset.blob_key is None:
+            raise NotFound("사진을 찾을 수 없어요.")
+        key = asset.blob_key
+        with contextlib.closing(self.open_file(owner_id, session_id, asset_id).stream) as stream:
+            return asset, stream.read(), key
 
     # ------------------------------------------------------------------ 설명과 연결
 
@@ -439,3 +581,7 @@ class AssetService:
         self.db.exec(delete(TranscriptSegment).where(TranscriptSegment.asset_id == asset.id))
         self.db.delete(asset)
         self.db.commit()
+
+
+def _photo_revision(key: str) -> str:
+    return hashlib.sha256(key.encode()).hexdigest()

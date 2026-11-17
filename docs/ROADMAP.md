@@ -4,23 +4,39 @@
 
 - 설치 환경: **웹앱**만 지원해요.
 - 작업 공간: 사이드바에서 내 행사와 필기·자료·AI 요약·초안으로 이동해요. 작은 화면에서는 메뉴를 접을 수 있어요. [#35](https://github.com/jyje/open-attendee/issues/35)
+- 행사별 보관 설정에 따라 전사 구간을 저장한 뒤 음성 원본을 삭제해요. [#71](https://github.com/jyje/open-attendee/issues/71)
+- [데이터 보관과 삭제 안내](data-retention.md)에 자료별 보관·삭제 동작을 정리했어요. 보관 일수와 백업 만료는 배포별로 정해요. [#84](https://github.com/jyje/open-attendee/issues/84)
+- 로컬 전사기가 설정된 환경에서는 녹음의 시간 구간을 보고 요약·초안의 출처로 사용할 수 있어요. [#70](https://github.com/jyje/open-attendee/issues/70)
+- 녹음이 켜진 환경에서는 자료 화면에서 행사 동의를 선택해 브라우저로 녹음하고 저장할 수 있어요. [#67](https://github.com/jyje/open-attendee/issues/67)
+- 자료 화면에서 행사별 녹음 동의를 저장하고 철회할 수 있어요. [#64](https://github.com/jyje/open-attendee/issues/64)
+- 녹음 동의를 철회하면 해당 녹음과 전사, 그 음성을 입력으로 사용한 요약과 초안의 접근을 제한해요. 남은 자료로 결과를 다시 만들 수 있어요. [#65](https://github.com/jyje/open-attendee/issues/65)
+- 업로드 응답 유실 후 같은 녹음의 저장을 재시도해도 첨부가 한 건만 남아요. [#79](https://github.com/jyje/open-attendee/issues/79)
+- 마이크 녹음이 예기치 않게 끝나면 중단 안내를 보여 주고, 중단 전에 녹음된 부분을 저장할 수 있어요. [#81](https://github.com/jyje/open-attendee/issues/81)
+- 사진마다 얼굴 후보를 확인하고 직접 보완한 영역을 흐리게 처리할 수 있어요. [#74](https://github.com/jyje/open-attendee/issues/74)
+- 자료 업로드: 키보드로 사진·발표자료·참고자료의 파일 선택을 열 수 있어요. [#36](https://github.com/jyje/open-attendee/issues/36)
+- 승인한 초안에서 마지막 필기 수정이나 자료 추가부터 승인까지의 경과 시간을 확인할 수 있어요. [#61](https://github.com/jyje/open-attendee/issues/61)
+- 필기 자동 저장과 포커스 이동은 같은 내용의 메모를 한 번만 저장해요. [#76](https://github.com/jyje/open-attendee/issues/76)
+- AI 초안의 새 문장과 수정한 문장은 연결 출처의 실제 인용으로 검증해요. [#31](https://github.com/jyje/open-attendee/issues/31) · [#33](https://github.com/jyje/open-attendee/issues/33)
+- 요약 출처에는 자료 종류와 위치를 한 번씩 표시해요. [#49](https://github.com/jyje/open-attendee/issues/49)
+- 자료 화면에서 발표자료와 참고자료를 원래 파일 이름으로 내려받을 수 있어요. [#54](https://github.com/jyje/open-attendee/issues/54)
+- 첨부 파일은 로컬 볼륨이나 S3에 저장할 수 있어요. [#53](https://github.com/jyje/open-attendee/issues/53)
 - 배포 대상: **온프레미스 Kubernetes 클러스터**.
+- 상태 점검 명령에서 준비 상태, LLM 설정, 첨부 저장소를 조회할 수 있어요. [#57](https://github.com/jyje/open-attendee/issues/57)
+- 환경별 Helm 값 파일에서 개발·스테이징·운영 이미지를 선택해요. [#59](https://github.com/jyje/open-attendee/issues/59)
 - 배포 방식: **k8s + Helm 네이티브**. 차트는 `helm/`, 이미지는 `docker/`에 있어요.
+- CI와 이미지 빌드의 GitHub Actions는 Node.js 24 런타임을 사용해요. [#44](https://github.com/jyje/open-attendee/issues/44)
+- 한국 행사 녹음, 전사, 모델 전송과 공개 관련 [운영 안내](recording-privacy-kr.md)를 정리했어요. 배포별 계약과 데이터 처리 위치를 확인해요. [#85](https://github.com/jyje/open-attendee/issues/85)
 
 ## 예정
 
 | 항목 | 상태 | 비고 |
 |---|---|---|
+| 행사 정리 시간 비교 | 측정 대기 | [측정 절차와 합성 자료](validation/event-summary-benchmark.md)로 사람의 수작업과 앱 사용을 비교해요. [#62](https://github.com/jyje/open-attendee/issues/62) |
+| 실제 기기의 장시간 마이크 녹음 | 실기기 검증 대기 | [합성 마이크 결과와 실기기 절차](validation/recording-devices.md)로 긴 캡처와 중단 복구를 확인해요. [#68](https://github.com/jyje/open-attendee/issues/68) |
 | macOS (맥북) 지원 | 예정 | 지금은 웹앱만 제공해요. |
 | iOS 지원 | 예정 | 지금은 웹앱만 제공해요. |
 | AWS EKS 레시피 | 예정 | 같은 Helm 차트를 EKS에 올리는 방법을 정리해요. |
 | AWS ECS 레시피 | 예정 | Helm을 쓰지 않으니 작업 정의(task definition)를 새로 만들어요. |
-
-## 파생 로드맵
-
-| 항목 | 상태 | 추적 |
-|---|---|---|
-| 자료 업로드의 키보드 조작 | 예정 | [#36](https://github.com/jyje/open-attendee/issues/36) |
 
 ## 지금 하지 않는 것
 

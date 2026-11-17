@@ -12,6 +12,7 @@ export type Block = { id: string; position: number; text: string; revision: numb
 
 export type SessionDetail = {
   id: string
+  retain_audio: boolean
   title: string
   event_date: string | null
   blocks: Block[]
@@ -23,17 +24,36 @@ export type Asset = {
   display_name: string
   mime: string
   size_bytes: number
+  page_count: number | null
   status: string
   caption: string
   linked_block_id: string | null
   link_manual: boolean
+  faces_blurred: boolean
+  face_check_confirmed: boolean
+  consent_blocked?: boolean
   chunk_count: number
 }
 
 export type AssetList = {
   items: Asset[]
   limits: Record<string, number>
+  transcription_enabled: boolean
   recording_enabled: boolean
+  recording_max_bytes: number
+}
+
+export type Transcript = {
+  completed: boolean
+  asset_status: string
+  segments: { start_ms: number; end_ms: number; text: string }[]
+}
+
+export type ConsentRecord = {
+  id: string
+  obtained_on: string
+  method: string
+  revoked_at: string | null
 }
 
 export type SummarySource = { kind: string; locator: string; target_id: string }
@@ -42,6 +62,7 @@ export type Summary = { id: string; created_at: string; bullets: SummaryBullet[]
 export type SummaryResponse = {
   summary: Summary | null
   llm_configured: boolean
+  consent_blocked?: boolean
   dropped_bullets?: number
   truncated?: boolean
 }
@@ -64,7 +85,25 @@ export type Draft = {
   id: string
   status: 'generating' | 'in_review' | 'approved' | 'failed'
   approved_at: string | null
+  review_seconds: number | null
   unverified_count: number
+  template_name: string | null
   sections: DraftSection[]
 }
-export type DraftResponse = { draft: Draft | null; llm_configured: boolean }
+export type DraftResponse = { draft: Draft | null; llm_configured: boolean; consent_blocked?: boolean }
+
+export type TemplateInfo = { id: string; name: string; sections: string[] }
+export type TemplateSection = {
+  id: string
+  title: string
+  instruction: string
+  max_sentences: number
+  insight_slot: boolean
+}
+export type TemplateDetail = {
+  id: string
+  name: string
+  tone: string
+  built_in: boolean
+  sections: TemplateSection[]
+}

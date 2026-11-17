@@ -4,11 +4,26 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlmodel import Session, select
 
+from open_attendee import drafts
+from open_attendee.db import init_db
 from open_attendee.llm import LLMGateway
+from open_attendee.models import (
+    Asset,
+    AssetKind,
+    Draft,
+    DraftStatus,
+    MemoBlock,
+    Sentence,
+    SentenceOrigin,
+)
+from open_attendee.web.deps import get_gateway
 
 from .conftest import OWNER_PASSWORD
 
@@ -32,6 +47,18 @@ GEN = {
 }
 
 
+def _judgement(index: int, supported: bool, *, spot: bool = False) -> dict:
+    evidence = (
+        {"source": "S2", "quote": "스팟 비용 이야기"}
+        if spot
+        else {
+            "source": "S1",
+            "quote": "Karpenter 이야기",
+        }
+    )
+    return {"index": index, "supported": supported, "evidence": [evidence] if supported else []}
+
+
 def make_ask(support: dict[int, bool] | None, *, fail_support: bool = False):
     """초안 프롬프트에는 GEN을, 지지 판정 프롬프트에는 support 결과를 돌려주는 가짜."""
     calls: list[str] = []
@@ -42,7 +69,11 @@ def make_ask(support: dict[int, bool] | None, *, fail_support: bool = False):
             if fail_support:
                 return "형식 아님"
             return json.dumps(
-                {"results": [{"index": i, "supported": v} for i, v in (support or {}).items()]}
+                {
+                    "results": [
+                        _judgement(i, value, spot=i == 2) for i, value in (support or {}).items()
+                    ]
+                }
             )
         return json.dumps(GEN)
 
@@ -118,10 +149,76 @@ def test_approval_needs_every_unverified_sentence_handled(api: TestClient) -> No
     assert approved.json()["status"] == "approved"
 
 
+@pytest.mark.parametrize(("latest", "expected"), [("memo", 74), ("asset", 53), (None, None)])
+def test_approval_records_elapsed_since_latest_record(
+    api: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch, latest, expected
+) -> None:
+    sid = api.post("/api/sessions", json={"title": "정리 시간"}).json()["id"]
+    now = datetime(2026, 11, 16, 12, tzinfo=UTC)
+    monkeypatch.setattr(drafts, "utcnow", lambda: now)
+    draft = Draft(
+        session_id=sid,
+        template_id="builtin-blog",
+        template_snapshot="{}",
+        status=DraftStatus.IN_REVIEW,
+    )
+    db.add(draft)
+    db.add(MemoBlock(id=uuid.uuid4().hex, session_id=sid, text="\t　\n", updated_at=now))
+    if latest is not None:
+        db.add(
+            MemoBlock(
+                id=uuid.uuid4().hex,
+                session_id=sid,
+                text="검토할 필기",
+                created_at=now - timedelta(minutes=20),
+                updated_at=now - timedelta(seconds=74),
+            )
+        )
+        db.add(
+            Asset(
+                session_id=sid,
+                kind=AssetKind.REFERENCE,
+                display_name="notes.txt",
+                mime="text/plain",
+                created_at=now - timedelta(seconds=53 if latest == "asset" else 100),
+            )
+        )
+    db.commit()
+    draft_id = draft.id
+
+    response = api.post(f"/api/drafts/{draft_id}/approve")
+    assert response.status_code == 200, response.text
+    assert response.json()["review_seconds"] == expected
+    monkeypatch.setattr(drafts, "utcnow", lambda: now + timedelta(minutes=5))
+    with pytest.raises(drafts.ReviewConflict):
+        drafts.approve(db, draft)
+    reloaded = api.get(f"/api/sessions/{sid}/draft").json()["draft"]
+    assert reloaded["review_seconds"] == expected
+    assert reloaded["approved_at"] == now.isoformat()
+
+
+def test_older_approved_draft_keeps_missing_review_time(api: TestClient, db: Session) -> None:
+    sid = api.post("/api/sessions", json={"title": "이전 승인 기록"}).json()["id"]
+    db.add(
+        Draft(
+            session_id=sid,
+            template_id="builtin-blog",
+            template_snapshot="{}",
+            status=DraftStatus.APPROVED,
+            approved_at=datetime(2026, 11, 15, 12, tzinfo=UTC),
+        )
+    )
+    db.commit()
+    res = api.get(f"/api/sessions/{sid}/draft")
+    assert res.json()["draft"]["status"] == "approved"
+    assert res.json()["draft"]["review_seconds"] is None
+
+
 def test_export_only_after_approval_with_notice_marks_and_sources(api: TestClient) -> None:
     draft = _draft(api)
     ids = {s["text"]: s["id"] for s in _sentences(draft)}
     assert api.get(f"/api/drafts/{draft['id']}/export.md").status_code == 409
+    assert api.get(f"/api/drafts/{draft['id']}/export.html").status_code == 409
     api.patch(
         f"/api/drafts/{draft['id']}/sentences/{ids['스팟 인스턴스로 비용이 40% 줄었다.']}",
         json={"action": "keep_as_opinion"},
@@ -143,6 +240,51 @@ def test_export_only_after_approval_with_notice_marks_and_sources(api: TestClien
     assert "나도 써 보고 싶다." in text  # 인사이트는 출처 표시 없이
     assert "1. 메모: 메모 1번째 블록" in text
     assert "출처 없는 주장" not in text
+    html = api.get(f"/api/drafts/{draft['id']}/export.html")
+    assert html.status_code == 200
+    assert html.headers["content-type"] == "text/html; charset=utf-8"
+    assert html.headers["content-disposition"] == 'attachment; filename="open-attendee-draft.html"'
+    assert "<h1>AWS 밋업</h1>" in html.text
+    assert "<p>이 글은 AI가" in html.text
+    assert "스팟 인스턴스로 비용이 40% 줄었다. (출처 미확인)" in html.text
+    assert "나도 써 보고 싶다." in html.text
+    assert 'href="#source-1">[1]</a>' in html.text
+    assert '<li id="source-1">메모: 메모 1번째 블록</li>' in html.text
+    assert "출처 없는 주장" not in html.text
+
+
+def test_html_export_escapes_title_sentences_and_source_labels(api: TestClient) -> None:
+    from open_attendee.models import Fact
+
+    sid = _session(api)
+    api.patch(f"/api/sessions/{sid}", json={"title": '<script>title()</script> & "행사"'})
+    api.app.state.llm_gateway = LLMGateway(make_ask({0: True, 1: True, 2: True}))  # type: ignore[attr-defined]
+    draft = api.post(f"/api/sessions/{sid}/draft").json()["draft"]
+    for sentence in _sentences(draft):
+        if sentence["verify_status"] == "unverified":
+            api.delete(f"/api/drafts/{draft['id']}/sentences/{sentence['id']}")
+    with Session(api.app.state.engine) as db:  # type: ignore[attr-defined]
+        for fact in db.exec(select(Fact).where(Fact.draft_id == draft["id"])):
+            if fact.sources:
+                fact.sources = [
+                    source.model_copy(update={"locator": '<img src="https://example.net/probe">'})
+                    for source in fact.sources
+                ]
+                db.add(fact)
+        db.commit()
+    api.post(
+        f"/api/drafts/{draft['id']}/insights",
+        json={"section_id": "wrap", "text": '<a href="javascript:probe()">의견</a>'},
+    )
+    assert api.post(f"/api/drafts/{draft['id']}/approve").status_code == 200
+    html = api.get(f"/api/drafts/{draft['id']}/export.html")
+    assert html.status_code == 200
+    assert "<h1>&lt;script&gt;title()&lt;/script&gt; &amp; &quot;행사&quot;</h1>" in html.text
+    assert "&lt;a href=&quot;javascript:probe()&quot;&gt;의견&lt;/a&gt;" in html.text
+    assert "&lt;img src=&quot;https://example.net/probe&quot;&gt;" in html.text
+    assert "<script" not in html.text
+    assert "<img" not in html.text
+    assert 'href="javascript:' not in html.text
 
 
 def test_edit_keeps_sources_and_is_blocked_after_approval(api: TestClient) -> None:
@@ -153,7 +295,9 @@ def test_edit_keeps_sources_and_is_blocked_after_approval(api: TestClient) -> No
     )
     edited = _sentences(res.json())[0]
     assert (edited["text"], edited["origin"]) == ("고친 문장", "ai_edited")
-    assert edited["sources"] and edited["verify_note"] == "사용자가 수정함"
+    assert edited["sources"] == sentence["sources"]
+    assert edited["verify_status"] == "verified"
+    assert edited["verify_note"] is None
     for s in _sentences(draft):
         if s["verify_status"] == "unverified":
             api.delete(f"/api/drafts/{draft['id']}/sentences/{s['id']}")
@@ -213,7 +357,7 @@ LINKEDIN_GEN = {
 
 def _linkedin_ask(prompt: str) -> str:
     if "뒷받침되면" in prompt:
-        return json.dumps({"results": [{"index": i, "supported": True} for i in range(20)]})
+        return json.dumps({"results": [_judgement(i, True) for i in range(20)]})
     return json.dumps(LINKEDIN_GEN)
 
 
@@ -257,3 +401,116 @@ def test_unknown_template_is_422_and_default_is_blog(api: TestClient) -> None:
     assert (bad.status_code, bad.json()["error"]["code"]) == (422, "unknown_template")
     default = api.post(f"/api/sessions/{sid}/draft")  # 본문 없이도 블로그
     assert [s["id"] for s in default.json()["draft"]["sections"]] == ["intro", "body", "wrap"]
+
+
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        [],
+        [{"source": "S1", "quote": "비용 40% 절감"}],
+        [{"source": "S2", "quote": "스팟 비용 이야기"}],
+        [{"source": "S1", "quote": " "}],
+    ],
+    ids=["missing", "fabricated", "uncited", "blank"],
+)
+def test_support_requires_a_real_quote_from_a_cited_source(
+    api: TestClient, evidence: list[dict[str, str]]
+) -> None:
+    assert isinstance(api.app, FastAPI)
+    sid = _session(api)
+
+    def ask(prompt: str) -> str:
+        if "뒷받침되면" in prompt:
+            return json.dumps({"results": [{"index": 0, "supported": True, "evidence": evidence}]})
+        return json.dumps(GEN)
+
+    api.app.state.llm_gateway = LLMGateway(ask)
+    created = api.post(f"/api/sessions/{sid}/draft")
+    assert created.status_code == 200
+    draft = created.json()["draft"]
+    original = _sentences(draft)[0]
+    assert original["verify_status"] == "unverified"
+
+    edited = api.patch(
+        f"/api/drafts/{draft['id']}/sentences/{original['id']}", json={"text": "수정한 문장"}
+    )
+    assert edited.status_code == 200
+    assert _sentences(edited.json())[0]["verify_status"] == "unverified"
+
+
+@pytest.mark.parametrize("provider", ["unsupported", "failed", "unconfigured", "changed_source"])
+def test_edit_does_not_inherit_verification(api: TestClient, provider: str) -> None:
+    assert isinstance(api.app, FastAPI)
+    sid = _session(api)
+    ask = make_ask({0: True, 1: True, 2: True})
+    api.app.state.llm_gateway = LLMGateway(ask)
+    draft = api.post(f"/api/sessions/{sid}/draft").json()["draft"]
+    sentence = _sentences(draft)[0]
+    assert sentence["verify_status"] == "verified"
+    path = f"/api/drafts/{draft['id']}/sentences/{sentence['id']}"
+
+    if provider == "changed_source":
+        with Session(api.app.state.engine) as db:
+            block = db.exec(
+                select(MemoBlock).where(MemoBlock.session_id == sid, MemoBlock.position == 0)
+            ).one()
+            block.revision += 1
+            db.add(block)
+            db.commit()
+    check = make_ask({0: provider == "changed_source"}, fail_support=provider == "failed")
+    api.app.dependency_overrides[get_gateway] = lambda: (
+        None if provider == "unconfigured" else LLMGateway(check)
+    )
+    reply = api.patch(path, json={"text": "비용이 줄었다는 새 주장"})
+    assert reply.status_code == 200
+    edited = _sentences(reply.json())[0]
+    assert edited["verify_status"] == "unverified"
+    assert edited["sources"] == sentence["sources"]
+    if provider in ("unsupported", "failed"):
+        assert "Karpenter 이야기" in check.calls[0]  # type: ignore[attr-defined]
+        assert "스팟 비용 이야기" not in check.calls[0]  # type: ignore[attr-defined]
+    else:
+        assert not check.calls  # type: ignore[attr-defined]
+    refused = api.post(f"/api/drafts/{draft['id']}/approve")
+    assert refused.status_code == 409
+    assert sentence["id"] in refused.json()["error"]["sentence_ids"]
+
+
+def test_legacy_review_edits_lose_stale_verification(api: TestClient) -> None:
+    assert isinstance(api.app, FastAPI)
+    draft = _draft(api)
+    sentence = _sentences(draft)[0]
+    engine = api.app.state.engine
+    with Session(engine) as db:
+        legacy = db.get(Sentence, sentence["id"])
+        assert legacy is not None
+        legacy.origin = SentenceOrigin.AI_EDITED
+        legacy.verify_note = "사용자가 수정함"
+        db.commit()
+
+    init_db(engine)
+    refused = api.post(f"/api/drafts/{draft['id']}/approve")
+    assert refused.status_code == 409
+    assert sentence["id"] in refused.json()["error"]["sentence_ids"]
+
+
+def test_edit_does_not_overwrite_a_draft_approved_during_verification(api: TestClient) -> None:
+    assert isinstance(api.app, FastAPI)
+    draft = _draft(api)
+    sentence = _sentences(draft)[0]
+    for other in _sentences(draft):
+        if other["verify_status"] == "unverified":
+            api.delete(f"/api/drafts/{draft['id']}/sentences/{other['id']}")
+
+    def approve_during_check(_prompt: str) -> str:
+        assert api.post(f"/api/drafts/{draft['id']}/approve").status_code == 200
+        return json.dumps({"results": [_judgement(0, True)]})
+
+    api.app.state.llm_gateway = LLMGateway(approve_during_check)
+    reply = api.patch(
+        f"/api/drafts/{draft['id']}/sentences/{sentence['id']}", json={"text": "늦은 변경"}
+    )
+    assert reply.status_code == 409
+    exported = api.get(f"/api/drafts/{draft['id']}/export.md")
+    assert sentence["text"] in exported.text
+    assert "늦은 변경" not in exported.text

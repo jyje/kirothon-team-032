@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from open_attendee import drafts as svc
+from open_attendee.consent import result_consent_blocked
+from open_attendee.errors import NotFound
 from open_attendee.llm import LLMError
+from open_attendee.models import Draft
+from open_attendee.templates import BLOG_TEMPLATE_ID, get_template
 from open_attendee.web.deps import Db, Gateway, Owner, Sessions
 
 router = APIRouter(prefix="/api")
@@ -21,7 +25,7 @@ class SentencePatch(BaseModel):
 
 
 class DraftCreate(BaseModel):
-    template_id: str = svc.BLOG_TEMPLATE_ID
+    template_id: str = BLOG_TEMPLATE_ID
 
 
 class InsightBody(BaseModel):
@@ -39,7 +43,9 @@ def _body(db: Db, draft: Any, llm_configured: bool | None = None) -> dict[str, A
         "id": draft.id,
         "status": draft.status.value,
         "approved_at": draft.approved_at.isoformat() if draft.approved_at else None,
+        "review_seconds": draft.review_seconds,
         "unverified_count": view.unverified_count,
+        "template_name": view.template_name,
         "sections": view.sections,
     }
     if llm_configured is not None:
@@ -47,19 +53,25 @@ def _body(db: Db, draft: Any, llm_configured: bool | None = None) -> dict[str, A
     return body
 
 
-@router.get("/templates")
-def list_templates(_owner: Owner) -> dict[str, Any]:
-    return {"templates": svc.list_templates()}
-
-
 @router.get("/sessions/{session_id}/draft")
 def get_draft(
-    session_id: str, owner: Owner, sessions: Sessions, db: Db, gateway: Gateway
+    session_id: str,
+    owner: Owner,
+    sessions: Sessions,
+    db: Db,
+    gateway: Gateway,
+    response: Response,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "private, no-store"
     sessions.get(owner, session_id)
-    draft = svc.latest_draft(db, session_id)
+    draft = db.get(Draft, result_id) if result_id else svc.latest_draft(db, session_id)
+    if result_id and (draft is None or draft.session_id != session_id):
+        raise NotFound
+    blocked = draft is not None and result_consent_blocked(db, draft)
     return {
-        "draft": _body(db, draft) if draft else None,
+        "draft": _body(db, draft) if draft and not blocked else None,
+        **({"consent_blocked": True} if blocked else {}),
         "llm_configured": gateway is not None,
     }
 
@@ -71,19 +83,22 @@ def create_draft(
     sessions: Sessions,
     db: Db,
     gateway: Gateway,
+    response: Response,
     body: DraftCreate | None = None,
 ) -> JSONResponse | dict[str, Any]:
+    response.headers["Cache-Control"] = "private, no-store"
     sessions.get(owner, session_id)
     if gateway is None:
         return _error(
             503, "llm_not_configured", "AI 제공자가 설정되지 않았어요. API 키를 설정해 주세요."
         )
     try:
-        draft = svc.generate_draft(
-            db, gateway, session_id, body.template_id if body else svc.BLOG_TEMPLATE_ID
-        )
-    except svc.UnknownTemplate:
+        template = get_template(db, owner, body.template_id if body else BLOG_TEMPLATE_ID)
+    except NotFound:
         return _error(422, "unknown_template", "알 수 없는 템플릿이에요.")
+    try:
+        draft = svc.generate_draft(db, gateway, session_id, template)
+        db.commit()
     except svc.NoSources:
         return _error(
             422, "no_sources", "초안을 만들 기록이 없어요. 메모를 쓰거나 자료를 올려 주세요."
@@ -95,14 +110,14 @@ def create_draft(
 
 @router.patch("/drafts/{draft_id}/sentences/{sentence_id}", response_model=None)
 def patch_sentence(
-    draft_id: str, sentence_id: str, body: SentencePatch, owner: Owner, db: Db
+    draft_id: str, sentence_id: str, body: SentencePatch, owner: Owner, db: Db, gateway: Gateway
 ) -> JSONResponse | dict[str, Any]:
     draft = svc.get_draft(db, owner, draft_id)
     try:
         if body.action == "keep_as_opinion":
             svc.keep_as_opinion(db, draft, sentence_id)
         elif body.text is not None:
-            svc.edit_sentence(db, draft, sentence_id, body.text)
+            svc.edit_sentence(db, draft, sentence_id, body.text, gateway)
         else:
             return _error(422, "nothing_to_do", "text나 action 중 하나가 필요해요.")
     except svc.ReviewConflict as exc:
@@ -144,19 +159,27 @@ def approve_draft(draft_id: str, owner: Owner, db: Db) -> JSONResponse | dict[st
     return _body(db, draft)
 
 
-@router.get("/drafts/{draft_id}/export.md", response_model=None)
-def export_draft(draft_id: str, owner: Owner, sessions: Sessions, db: Db) -> Response:
+@router.get("/drafts/{draft_id}/export.{extension}", response_model=None)
+def export_draft(
+    draft_id: str, extension: Literal["md", "html"], owner: Owner, sessions: Sessions, db: Db
+) -> Response:
     draft = svc.get_draft(db, owner, draft_id)
     event = sessions.get(owner, draft.session_id)
     try:
-        text = svc.export_markdown(db, draft, event.title)
+        if extension == "html":
+            text = svc.export_html(db, draft, event.title)
+            media_type = "text/html"
+        else:
+            text = svc.export_markdown(db, draft, event.title)
+            media_type = "text/markdown"
     except svc.ReviewConflict as exc:
         return _error(409, "conflict", str(exc))
-    return PlainTextResponse(
+    return Response(
         text,
-        media_type="text/markdown; charset=utf-8",
+        media_type=media_type,
         headers={
-            "Content-Disposition": 'attachment; filename="open-attendee-draft.md"',
+            "Content-Disposition": f'attachment; filename="open-attendee-draft.{extension}"',
             "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
         },
     )

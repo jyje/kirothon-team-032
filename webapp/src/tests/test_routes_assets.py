@@ -2,18 +2,34 @@
 
 from __future__ import annotations
 
+import io
 import uuid
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from threading import Barrier
+from typing import BinaryIO
+from zipfile import ZipFile
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine
 from sqlmodel import Session, func, select
 
-from open_attendee.assets import SIZE_LIMITS
+from open_attendee.assets import SIZE_LIMITS, AssetService
 from open_attendee.config import Settings
+from open_attendee.consent import ConsentGate
+from open_attendee.errors import ConsentRequired
 from open_attendee.main import create_app
-from open_attendee.models import Asset, AssetKind, DocChunk, MemoBlock, TranscriptSegment
+from open_attendee.models import (
+    Asset,
+    AssetKind,
+    DocChunk,
+    MemoBlock,
+    RecordingUpload,
+    TranscriptSegment,
+)
 from open_attendee.sessions import SessionService
 from open_attendee.storage import LocalBlobStore
 from tests.conftest import BASE_URL, csrf_token, login
@@ -228,8 +244,7 @@ def test_solo_voice가_아닌_음성_메모는_동의가_없으면_403(
     assert asset_count(db) == 1
 
 
-def test_동의_기록과_함께_올리면_녹음을_저장한다(recording_client: TestClient, db: Session) -> None:
-    sid = create_session(recording_client)
+def _recording_consent(recording_client: TestClient, sid: str) -> str:
     consent = recording_client.post(
         f"/api/sessions/{sid}/consents",
         data={
@@ -241,20 +256,157 @@ def test_동의_기록과_함께_올리면_녹음을_저장한다(recording_clie
         },
     )
     assert consent.status_code == 201
+    return consent.json()["id"]
 
-    res = upload(
-        recording_client, sid, "recording", WEBM, "talk.webm", consent_id=consent.json()["id"]
-    )
+
+def test_동의_기록과_함께_올리면_녹음을_저장한다(recording_client: TestClient, db: Session) -> None:
+    sid = create_session(recording_client)
+    consent_id = _recording_consent(recording_client, sid)
+
+    res = upload(recording_client, sid, "recording", WEBM, "talk.webm", consent_id=consent_id)
     assert res.status_code == 201
     assert res.json()["status"] == "stored"
 
 
-def test_PPTX는_415와_PDF_변환_안내(
+def test_replaying_recording_upload_checks_consent_and_retains_deletion(
+    recording_client: TestClient, db: Session, blobs: LocalBlobStore
+) -> None:
+    sid = create_session(recording_client)
+    consent_id = _recording_consent(recording_client, sid)
+    token = str(uuid.uuid4())
+
+    def send(upload_id: str, *, name: str = "talk.webm"):
+        return upload(
+            recording_client,
+            sid,
+            "recording",
+            WEBM,
+            name,
+            consent_id=consent_id,
+            recording_upload_id=upload_id,
+        )
+
+    first = send(token)
+    second = send(token)
+    assert first.status_code == second.status_code == 201
+    assert first.json() == second.json()
+    assert asset_count(db) == 1
+    assert len(blob_files(blobs)) == 1
+    assert send(token, name="other.webm").status_code == 422
+    another_token = str(uuid.uuid4())
+    other = send(another_token)
+    assert other.status_code == 201 and other.json()["id"] != first.json()["id"]
+
+    deleted = recording_client.delete(f"/api/sessions/{sid}/assets/{first.json()['id']}")
+    assert deleted.status_code == 204
+    assert send(token).status_code == 404
+    assert asset_count(db) == 1
+    assert len(blob_files(blobs)) == 1
+    assert recording_client.post(f"/api/consents/{consent_id}/revoke").status_code == 200
+    assert send(another_token).status_code == 403
+    assert recording_client.delete(f"/api/sessions/{sid}").status_code == 204
+    assert db.exec(select(RecordingUpload)).all() == []
+
+
+def test_concurrent_recording_uploads_keep_one_blob_and_allow_retry_after_storage_failure(
+    recording_client: TestClient,
+    db: Session,
+    blobs: LocalBlobStore,
+    engine: Engine,
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sid = create_session(recording_client)
+    consent_id = _recording_consent(recording_client, sid)
+    token = uuid.uuid4().hex
+    settings = replace(settings, feature_recording=True, transcriber="fake")
+
+    def send() -> str:
+        with Session(engine) as connection:
+            service = AssetService(connection, blobs, settings)
+            return service.store_upload(
+                OWNER,
+                sid,
+                AssetKind.RECORDING,
+                "talk.webm",
+                io.BytesIO(WEBM),
+                consent_id,
+                recording_upload_id=token,
+            ).id
+
+    put = blobs.put
+
+    def fail_after_put(key: str, content: BinaryIO) -> int:
+        put(key, content)
+        raise OSError("storage failure fixture")
+
+    monkeypatch.setattr(blobs, "put", fail_after_put)
+    with pytest.raises(OSError, match="storage failure fixture"):
+        send()
+    assert not blob_files(blobs)
+    assert db.exec(select(RecordingUpload)).all() == []
+
+    both_written = Barrier(2, timeout=5)
+
+    def overlapping_put(key: str, content: BinaryIO) -> int:
+        size = put(key, content)
+        both_written.wait()
+        return size
+
+    monkeypatch.setattr(blobs, "put", overlapping_put)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first, second = pool.submit(send), pool.submit(send)
+        assert first.result(timeout=10) == second.result(timeout=10)
+    assert asset_count(db) == 1
+    assert len(blob_files(blobs)) == 1
+    assert blob_files(blobs)[0].read_bytes() == WEBM
+
+    def revoke_after_put(key: str, content: BinaryIO) -> int:
+        size = put(key, content)
+        with Session(engine) as writer:
+            ConsentGate(writer).revoke(OWNER, consent_id)
+        return size
+
+    monkeypatch.setattr(blobs, "put", revoke_after_put)
+    token = uuid.uuid4().hex
+    with pytest.raises(ConsentRequired):
+        send()
+    assert asset_count(db) == 1
+    assert len(blob_files(blobs)) == 1
+
+
+def test_깨진_PPTX는_422이고_저장하지_않는다(
     auth_client: TestClient, sid: str, db: Session, blobs: LocalBlobStore
 ) -> None:
-    res = upload(auth_client, sid, "slides", make_pptx(["제목"]), "deck.pptx")
-    assert res.status_code == 415
-    assert "PDF" in res.json()["detail"]
+    broken = io.BytesIO()
+    with ZipFile(broken, "w") as archive:
+        archive.writestr("ppt/presentation.xml", "<broken")
+    res = upload(auth_client, sid, "slides", broken.getvalue(), "deck.pptx")
+    assert res.status_code == 422
+    assert "PPTX" in res.json()["detail"]
+    assert asset_count(db) == 0
+    assert blob_files(blobs) == []
+
+
+def test_PPTX_업로드와_목록에_전체_슬라이드_수를_표시(auth_client: TestClient, sid: str) -> None:
+    res = upload(auth_client, sid, "slides", make_pptx(["첫 장", "", "마지막 장"]), "deck.pptx")
+    assert res.status_code == 201
+    assert res.json()["page_count"] == 3
+    item = auth_client.get(f"/api/sessions/{sid}/assets").json()["items"][0]
+    assert item["page_count"] == 3
+    assert item["chunk_count"] == 2
+
+
+def test_PPTX_압축_해제_상한을_넘으면_저장하지_않는다(
+    auth_client: TestClient,
+    sid: str,
+    db: Session,
+    blobs: LocalBlobStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("open_attendee.processors.docs._MAX_PPTX_EXPANDED_BYTES", 1)
+    result = upload(auth_client, sid, "slides", make_pptx(["제목"]), "deck.pptx")
+    assert result.status_code == 413
     assert asset_count(db) == 0
     assert blob_files(blobs) == []
 

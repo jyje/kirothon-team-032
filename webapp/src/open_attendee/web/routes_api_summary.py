@@ -5,8 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
+from open_attendee.consent import RESULT_CONSENT_MESSAGE, result_consent_blocked
+from open_attendee.errors import ConsentRequired, NotFound
 from open_attendee.llm import LLMError
 from open_attendee.models import LiveSummary
 from open_attendee.pipeline.summary import NoSources, generate_summary, latest_summary
@@ -40,16 +42,32 @@ def _error(status: int, code: str, message: str) -> JSONResponse:
 
 @router.get("/sessions/{session_id}/summary")
 def get_summary(
-    session_id: str, owner: Owner, sessions: Sessions, db: Db, gateway: Gateway
+    session_id: str,
+    owner: Owner,
+    sessions: Sessions,
+    db: Db,
+    gateway: Gateway,
+    response: Response,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "private, no-store"
     sessions.get(owner, session_id)  # 소유자 확인(없으면 404)
-    return {"summary": _body(latest_summary(db, session_id)), "llm_configured": gateway is not None}
+    result = db.get(LiveSummary, result_id) if result_id else latest_summary(db, session_id)
+    if result_id and (result is None or result.session_id != session_id):
+        raise NotFound
+    blocked = result is not None and result_consent_blocked(db, result)
+    return {
+        "summary": _body(result) if not blocked else None,
+        "llm_configured": gateway is not None,
+        **({"consent_blocked": True} if blocked else {}),
+    }
 
 
 @router.post("/sessions/{session_id}/summary", response_model=None)
 def create_summary(
-    session_id: str, owner: Owner, sessions: Sessions, db: Db, gateway: Gateway
+    session_id: str, owner: Owner, sessions: Sessions, db: Db, gateway: Gateway, response: Response
 ) -> JSONResponse | dict[str, Any]:
+    response.headers["Cache-Control"] = "private, no-store"
     sessions.get(owner, session_id)
     if gateway is None:
         return _error(
@@ -57,10 +75,13 @@ def create_summary(
         )
     try:
         result = generate_summary(db, gateway, session_id)
+        db.commit()
     except NoSources:
         return _error(422, "no_sources", "요약할 기록이 없어요. 메모를 쓰거나 자료를 올려 주세요.")
     except LLMError as exc:
         return _error(502, "llm_failed", str(exc))
+    if result_consent_blocked(db, result.summary):
+        raise ConsentRequired(RESULT_CONSENT_MESSAGE)
     return {
         "summary": _body(result.summary),
         "llm_configured": True,

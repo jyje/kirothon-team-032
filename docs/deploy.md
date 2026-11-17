@@ -19,6 +19,23 @@
 - 로컬은 `webapp/.env`(커밋하지 않음)를 쓰고, 예시는 `webapp/.env.example`이에요.
 - 쿠키에 `Secure`가 붙어 있어서 로그인 유지는 `https://`나 `http://localhost`에서만 돼요.
 
+### S3 첨부 저장소
+
+기본값은 `BLOB_BACKEND=local`이에요. 새 환경에서 S3를 사용하려면 버킷을 준비하고 Helm의 `config`에 아래 값을 넣어요.
+
+```yaml
+config:
+  BLOB_BACKEND: s3
+  S3_BUCKET: open-attendee-attachments
+  AWS_REGION: ap-northeast-2
+  # S3 호환 서비스의 경우에만 지정해요.
+  # S3_ENDPOINT_URL: https://object-storage.example.com
+```
+
+Boto3의 기본 자격 증명 체인을 사용해요. 워크로드에 IAM 역할을 연결하거나, 액세스 키를 사용하는 환경에서는 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`와 필요한 경우 `AWS_SESSION_TOKEN`을 기존 Secret에 넣어요. 권한은 버킷의 `s3:ListBucket`과 첨부 키의 `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject`가 필요해요.
+
+SQLite는 계속 `DATA_DIR`의 PVC에 기록해요. 기존 배포에서 저장소를 전환할 때는 먼저 기존 첨부의 키 구조를 유지해 새 저장소로 복사해야 해요. 버전 관리가 켜진 버킷은 삭제된 객체의 이전 버전을 보존하므로, 실제 보존 기간은 버킷의 수명 주기 정책에서 관리해요.
+
 ## 1. 이미지 (CI가 만들어요)
 
 `main`에 머지되면 GitHub Actions의 **Build and push app image**(`.github/workflows/build.yml`)가 amd64와 arm64 이미지를 네이티브 러너에서 각각 빌드하고, 하나의 멀티 아키텍처 태그로 묶어 브랜치에 따라 `ghcr.io/jyje/open-attendee-dev`(main, dev), `-stg`(stg), `ghcr.io/jyje/open-attendee`(prd)에 올려요. 방식은 `jyje/mungchilog`의 `build.yml`을 따랐어요.
@@ -58,10 +75,20 @@ AI 요약용 키는 나중에 `kubectl ... patch secret` 또는 `kubectl ... cre
 
 ## 3. 배포
 
+브랜치와 같은 환경의 값 파일을 골라 CI Summary의 불변 이미지 태그와 함께 지정해요.
+
+| 브랜치 | Helm 값 파일 | GHCR 이미지 |
+|---|---|---|
+| `main`, `dev` | `helm/values-dev.yaml` | `ghcr.io/jyje/open-attendee-dev` |
+| `stg` | `helm/values-stg.yaml` | `ghcr.io/jyje/open-attendee-stg` |
+| `prd` | `helm/values-prd.yaml` | `ghcr.io/jyje/open-attendee` |
+
+아래는 개발 배포 예시예요. 여러 환경을 같은 클러스터에 두면 환경별 네임스페이스를 사용하고 각 네임스페이스에 Secret을 준비해요.
+
 ```bash
 helm upgrade --install open-attendee ./helm \
   --kube-context microk8s -n open-attendee \
-  --set image.repository=ghcr.io/jyje/open-attendee-dev \
+  -f helm/values-dev.yaml \
   --set image.tag=<CI가 만든 태그, 예: r12-abc1234>
 
 kubectl --context microk8s -n open-attendee rollout status deploy/open-attendee
@@ -72,10 +99,38 @@ kubectl --context microk8s -n open-attendee port-forward svc/open-attendee 8080:
 
 ```bash
 helm upgrade --install open-attendee ./helm --kube-context microk8s -n open-attendee \
-  --set image.tag=<태그> --set ingress.enabled=true --set ingress.host=<도메인>
+  -f helm/values-dev.yaml --set image.tag=<태그> --set ingress.enabled=true --set ingress.host=<도메인>
 ```
 
+### 브라우저 녹음과 업로드 크기
+
+`FEATURE_RECORDING`이 켜져 있고 `TRANSCRIBER`가 `none`이 아닌 경우에만 자료 화면에 행사 녹음이 표시돼요. 마이크에는 HTTPS 또는 localhost와 브라우저 권한이 필요해요. 전사기를 연결한 뒤 자료 화면에서 녹음마다 전사를 요청할 수 있어요.
+
+녹음 파일의 앱 제한은 2 GiB예요. 차트는 일반 요청의 `ingress.proxyBodySize` 기본값을 32 MiB로 두고, 녹음을 켠 배포에서는 멀티파트 헤더 여유분을 더한 `ingress.recordingProxyBodySize=2050m`을 사용해요. 별도 프록시가 있으면 해당 프록시의 본문 크기 제한도 함께 확인해요. [ingress-nginx의 요청 크기 설정](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/#custom-max-body-size)
+
+### CPU 전사 켜기
+
+로컬 개발에서는 `uv sync --frozen --extra stt`로 선택 의존성을 설치해요. 컨테이너는 `docker build --build-arg INSTALL_STT=true -f docker/Dockerfile .`로 해당 의존성을 포함해 빌드하고, 배포 설정에 `TRANSCRIBER=faster_whisper`를 넣어요. 브라우저에서 새 행사 녹음도 저장하려면 `FEATURE_RECORDING=true`를 함께 설정해요.
+
+`STT_MODEL`에는 모델 이름(기본값 `small`)이나 컨테이너에서 읽을 수 있는 모델 디렉터리를 지정해요. 모델 이름을 쓰면 최초 전사에서 가중치를 받아 `/data/huggingface`에 캐시해요. 앱은 음성을 5분 단위로 읽고 CPU에서 처리해요. 모델과 배포 환경에 따라 메모리 사용량과 처리 시간이 달라지므로, 해당 조합에서 측정한 뒤 컨테이너 한도를 설정해요. S3 원본을 전사하면 처리하는 동안 임시 파일을 둘 디스크 공간이 필요해요. [faster-whisper 모델 설정](https://github.com/SYSTRAN/faster-whisper#model-conversion)
+
+행사 자료 화면의 **전사 후 음성 원본 보관**은 새 행사에서 기본으로 꺼져 있어요. 전사 구간을 저장하는 시점의 설정으로 원본 삭제 여부를 정해요. 전사가 실패했거나 말소리를 찾지 못한 원본은 보관해요.
+
+삭제할 원본은 전사 결과와 함께 삭제 작업을 SQLite에 기록해요. 저장소 오류 시 삭제를 재시도하며, 대기 중에도 전사를 조회할 수 있어요. S3 버전 관리 설정에 따른 이전 버전의 보존은 위 S3 항목을 참고해요.
+
+### 사진 얼굴 확인
+
+얼굴 후보는 앱 이미지에 포함된 YuNet 모델로 처리해요. 후보가 빠질 수 있어 흐림 적용 전 사진 전체를 확인하고 필요한 영역을 추가해요. 저장하면 새 파일과 축소판을 함께 게시하고 이전 파일 쌍의 정리를 재시도해요. S3에서 버전 관리를 쓴다면 이전 객체 버전의 보존은 버킷 수명 주기에서 관리해요. [포함된 모델과 라이선스](../webapp/src/open_attendee/processors/models/README.md)
+
 ## 4. 확인과 되돌리기
+
+포트 포워딩한 앱은 저장소 루트에서 다음 명령으로 확인해요. 인그레스를 쓰면 끝에 앱의 HTTPS 주소를 넣어요.
+
+```bash
+uv run --frozen --project webapp/src python -m open_attendee.status http://127.0.0.1:8080
+```
+
+명령은 `/healthz`에서 SQLite 준비 상태, LLM 설정, 첨부 저장소 종류를 조회해 JSON으로 표시해요. 준비되면 종료 코드 0을, 준비되지 않았거나 조회에 실패하면 1을 반환해요. LLM 설정 정보와 저장소 종류는 연결 상태 점검과 별개예요.
 
 ```bash
 kubectl --context microk8s -n open-attendee get pods,pvc
@@ -85,4 +140,4 @@ helm rollback open-attendee --kube-context microk8s -n open-attendee
 ```
 
 - 데이터 볼륨(PVC)에는 `helm.sh/resource-policy: keep`을 붙여서 `helm uninstall`을 해도 기록이 남아요.
-- 복제본은 1개로 고정이에요. SQLite와 업로드 파일이 같은 볼륨 하나를 쓰기 때문이에요.
+- 복제본은 1개로 고정이에요. SQLite가 PVC 하나에 기록되기 때문이에요.

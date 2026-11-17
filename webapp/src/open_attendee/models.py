@@ -4,7 +4,7 @@
 소유자에 묶인다. 서비스 계층은 조회와 변경을 항상 `owner_id`로 한정한다.
 
 - 직접: `EventSession`, `Job`, `Template`(내장 템플릿은 `owner_id=None`)
-- `session_id`로: `MemoBlock`, `Asset`, `ConsentRecord`, `Draft`, `LiveSummary`
+- `session_id`로: `MemoBlock`, `Asset`, `ConsentRecord`, `Draft`, `LiveSummary`, `RecordingUpload`
 - `asset_id`로: `TranscriptSegment`, `DocChunk` (자료 -> 세션)
 - `draft_id`로: `Fact`, `Sentence` (초안 -> 세션)
 
@@ -114,6 +114,7 @@ class AssetStatus(StrEnum):
     PROCESSING = "processing"
     READY = "ready"
     FAILED = "failed"
+    ORIGINAL_DELETE_PENDING = "original_delete_pending"
     ORIGINAL_DELETED = "original_deleted"  # 전사 후 원본 음성 삭제됨
 
 
@@ -151,6 +152,8 @@ class JobKind(StrEnum):
     PHOTO = "photo"
     DOC = "doc"
     TRANSCRIBE = "transcribe"
+    DELETE_AUDIO = "delete_audio"
+    DELETE_PHOTO_VERSION = "delete_photo_version"
 
 
 class JobStatus(StrEnum):
@@ -211,6 +214,7 @@ class Asset(SQLModel, table=True):
     blob_key: str | None = None  # 원본 음성이 삭제되면 None
     mime: str
     size_bytes: int = 0
+    page_count: int | None = None  # 새로 추출한 문서의 전체 페이지 수
     captured_at: datetime | None = Field(default=None, sa_column=utc_column(nullable=True))
     consent_id: str | None = None
     solo_voice: bool = False  # 음성 메모가 본인 혼자 말한 것인지 사용자가 표시
@@ -223,6 +227,12 @@ class Asset(SQLModel, table=True):
         default=AssetStatus.STORED, sa_column=enum_column(AssetStatus, default=AssetStatus.STORED)
     )
     created_at: datetime = Field(default_factory=utcnow, sa_column=utc_column())
+
+
+class RecordingUpload(SQLModel, table=True):
+    session_id: str = Field(primary_key=True)
+    id: str = Field(primary_key=True)
+    asset_id: str
 
 
 class ConsentRecord(SQLModel, table=True):
@@ -291,9 +301,10 @@ class Draft(SQLModel, table=True):
         sa_column=enum_column(DraftStatus, default=DraftStatus.GENERATING),
     )
     uses_recording: bool = False  # 녹음 전사를 출처로 썼는지
+    consent_ids: list[str] | None = Field(default=None, sa_column=Column(JSON))
     approved_at: datetime | None = Field(default=None, sa_column=utc_column(nullable=True))
     created_at: datetime = Field(default_factory=utcnow, sa_column=utc_column())
-    # 효과 측정(요구사항 28, 1단계 20.3). 0단계에서는 비워 둔다.
+    # 효과 측정(요구사항 28, 1단계 20.3).
     llm_calls: int = 0
     llm_input_chars: int = 0
     llm_output_chars: int = 0
@@ -339,5 +350,6 @@ class LiveSummary(SQLModel, table=True):
     session_id: str = Field(index=True)
     bullets: list[dict] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
     # [{"text": ..., "sources": [SourceRef...]}]
+    consent_ids: list[str] | None = Field(default=None, sa_column=Column(JSON))
     covered_until: datetime = Field(default_factory=utcnow, sa_column=utc_column())
     created_at: datetime = Field(default_factory=utcnow, sa_column=utc_column())

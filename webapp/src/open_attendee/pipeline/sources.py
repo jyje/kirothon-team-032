@@ -8,16 +8,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
+from open_attendee.consent import is_valid_consent, require_result_consent
 from open_attendee.models import (
     Asset,
     AssetKind,
+    ConsentRecord,
     DocChunk,
     MemoBlock,
     SourceKind,
     SourceRef,
+    TranscriptSegment,
 )
+from open_attendee.processors.docs import PPTX_MIME
+from open_attendee.transcript_jobs import AUDIO_KINDS
 
 # 한 번에 LLM에 보내는 출처 텍스트의 한도(요구사항 18.7). 넘으면 앞에서부터 담고 잘렸다고 알린다.
 MAX_SOURCE_CHARS = 24_000
@@ -29,6 +34,7 @@ class SourceItem:
     label: str
     ref: SourceRef
     text: str
+    consent_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -39,13 +45,27 @@ class SourceMap:
     def get(self, label: str) -> SourceItem | None:
         return next((i for i in self.items if i.label == label), None)
 
+    @property
+    def consent_ids(self) -> list[str]:
+        return sorted({item.consent_id for item in self.items if item.consent_id is not None})
+
+    def lock_consent(self, db: Session, session_id: str) -> None:
+        consent_ids = self.consent_ids
+        if consent_ids:
+            db.rollback()
+            db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+            require_result_consent(db, session_id, consent_ids)
+
     def __len__(self) -> int:
         return len(self.items)
 
 
-def build_source_map(db: Session, session_id: str) -> SourceMap:
-    """비어 있지 않은 메모, 발표자료와 참고자료 조각, 설명이 있는 사진으로 대응표를 만든다."""
+def build_source_map(
+    db: Session, session_id: str, *, citations: list[SourceRef] | None = None
+) -> SourceMap:
+    """행사의 비어 있지 않은 메모, 첨부 자료와 유효한 전사로 대응표를 만든다."""
     raw: list[tuple[SourceRef, str]] = []
+    transcript_consents: dict[str, str] = {}
 
     blocks = db.exec(
         select(MemoBlock).where(MemoBlock.session_id == session_id).order_by(MemoBlock.position)
@@ -74,7 +94,8 @@ def build_source_map(db: Session, session_id: str) -> SourceMap:
             if not chunk.text.strip():
                 continue
             kind = SourceKind.DOC if asset.kind is AssetKind.SLIDES else SourceKind.REFERENCE
-            where = f"{asset.display_name} {chunk.page}쪽"
+            page = f"슬라이드 {chunk.page}" if asset.mime == PPTX_MIME else f"{chunk.page}쪽"
+            where = f"{asset.display_name} {page}"
             ref = SourceRef(kind=kind, target_id=chunk.id, locator=where)
             raw.append((ref, chunk.text.strip()))
 
@@ -83,17 +104,73 @@ def build_source_map(db: Session, session_id: str) -> SourceMap:
             ref = SourceRef(kind=SourceKind.PHOTO, target_id=asset.id, locator=asset.display_name)
             raw.append((ref, f"사진 설명: {asset.caption.strip()}"))  # type: ignore[union-attr]
 
+    audio_assets = [asset for asset in assets if asset.kind in AUDIO_KINDS]
+    if audio_assets:
+        valid_ids = {
+            record.id
+            for record in db.exec(
+                select(ConsentRecord).where(ConsentRecord.session_id == session_id)
+            )
+            if is_valid_consent(record, session_id)
+        }
+        allowed = [
+            asset.id
+            for asset in audio_assets
+            if (asset.kind is AssetKind.VOICE_MEMO and asset.solo_voice)
+            or asset.consent_id in valid_ids
+        ]
+        if allowed:
+            transcripts = db.exec(
+                select(TranscriptSegment)
+                .where(col(TranscriptSegment.asset_id).in_(allowed))
+                .order_by(col(TranscriptSegment.asset_id), col(TranscriptSegment.start_ms))
+            )
+            for segment in transcripts:
+                if segment.text.strip():
+                    asset = by_id[segment.asset_id]
+                    if not (asset.kind is AssetKind.VOICE_MEMO and asset.solo_voice):
+                        assert asset.consent_id is not None  # allowed에서 유효한 동의를 확인했다
+                        transcript_consents[segment.id] = asset.consent_id
+                    name = asset.display_name
+                    locator = f"{name} {_timestamp(segment.start_ms)}~{_timestamp(segment.end_ms)}"
+                    raw.append(
+                        (
+                            SourceRef(
+                                kind=SourceKind.TRANSCRIPT, target_id=segment.id, locator=locator
+                            ),
+                            segment.text.strip(),
+                        )
+                    )
+
     items: list[SourceItem] = []
     used = 0
     truncated = False
+    cited = {(ref.kind, ref.target_id, ref.revision) for ref in citations or []}
     for ref, text in raw:
+        if citations is not None and (ref.kind, ref.target_id, ref.revision) not in cited:
+            continue
         text = text[:MAX_ITEM_CHARS]
         if used + len(text) > MAX_SOURCE_CHARS:
             truncated = True
             break
         used += len(text)
-        items.append(SourceItem(label=f"S{len(items) + 1}", ref=ref, text=text))
+        items.append(
+            SourceItem(
+                label=f"S{len(items) + 1}",
+                ref=ref,
+                text=text,
+                consent_id=transcript_consents.get(ref.target_id)
+                if ref.kind is SourceKind.TRANSCRIPT
+                else None,
+            )
+        )
     return SourceMap(items=items, truncated=truncated)
+
+
+def _timestamp(milliseconds: int) -> str:
+    minutes, seconds = divmod(milliseconds // 1000, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours:02}:{minutes:02}:{seconds:02}.{milliseconds % 1000:03}"
 
 
 def render_sources(source_map: SourceMap) -> str:

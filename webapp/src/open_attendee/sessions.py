@@ -26,6 +26,7 @@ from open_attendee.models import (
     Job,
     LiveSummary,
     MemoBlock,
+    RecordingUpload,
     Sentence,
     TranscriptSegment,
     utcnow,
@@ -101,12 +102,15 @@ class SessionService:
         *,
         title: str | _Unset = UNSET,
         event_date: date | _Unset | None = UNSET,
+        retain_audio: bool | _Unset = UNSET,
     ) -> EventSession:
         event = self.get(owner_id, session_id)
         if not isinstance(title, _Unset):
             event.title = validate_title(title)
         if not isinstance(event_date, _Unset):
             event.event_date = event_date
+        if not isinstance(retain_audio, _Unset):
+            event.retain_audio = retain_audio
         event.updated_at = utcnow()
         self.db.add(event)
         self.db.commit()
@@ -127,7 +131,7 @@ class SessionService:
         self.db.exec(delete(TranscriptSegment).where(TranscriptSegment.asset_id.in_(asset_ids)))
         self.db.exec(delete(Fact).where(Fact.draft_id.in_(draft_ids)))
         self.db.exec(delete(Sentence).where(Sentence.draft_id.in_(draft_ids)))
-        for table in (Asset, ConsentRecord, MemoBlock, Draft, LiveSummary, Job):
+        for table in (RecordingUpload, Asset, ConsentRecord, MemoBlock, Draft, LiveSummary, Job):
             self.db.exec(delete(table).where(table.session_id == session_id))
         self.db.delete(event)
         self.db.commit()

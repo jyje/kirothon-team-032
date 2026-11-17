@@ -8,14 +8,22 @@ from __future__ import annotations
 
 import binascii
 import zlib
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from struct import error as struct_error
 from typing import BinaryIO, Final
+from zipfile import BadZipFile, ZipFile
 
+from lxml.etree import XMLSyntaxError
+from pptx import Presentation
+from pptx.exc import PackageNotFoundError
+from pptx.shapes.base import BaseShape
+from pptx.shapes.graphfrm import GraphicFrame
+from pptx.shapes.group import GroupShape
 from pypdf import PdfReader
 from pypdf.errors import DependencyError, PyPdfError
 
-from open_attendee.errors import ValidationFailed
+from open_attendee.errors import PayloadTooLarge, ValidationFailed
 from open_attendee.models import Asset, AssetKind, DocChunk
 
 MAX_CHUNK_CHARS: Final = 2000  # 한 조각의 글자 수 상한(요구사항 6.2)
@@ -23,11 +31,12 @@ MAX_CHUNK_CHARS: Final = 2000  # 한 조각의 글자 수 상한(요구사항 6.
 PDF_MIME: Final = "application/pdf"
 TEXT_MIME: Final = "text/plain"
 MARKDOWN_MIME: Final = "text/markdown"
+PPTX_MIME: Final = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+_MAX_PPTX_EXPANDED_BYTES: Final = 256 * 1024 * 1024
+_MAX_PPTX_PARTS: Final = 20_000
 
-# 종류별로 텍스트를 뽑을 수 있는 형식. 0단계는 슬라이드로 PDF만 허용한다.
-# 1단계(17.4)에서 PPTX를 열 때는 이 표와 `extract`만 바꾼다.
 _SUPPORTED: Final[dict[AssetKind, frozenset[str]]] = {
-    AssetKind.SLIDES: frozenset({PDF_MIME}),
+    AssetKind.SLIDES: frozenset({PDF_MIME, PPTX_MIME}),
     AssetKind.REFERENCE: frozenset({PDF_MIME, TEXT_MIME, MARKDOWN_MIME}),
 }
 
@@ -63,6 +72,7 @@ class EncryptedDocument(ValidationFailed):
 @dataclass(frozen=True)
 class Extraction:
     chunks: list[DocChunk]
+    page_count: int
 
     @property
     def no_text(self) -> bool:
@@ -104,6 +114,17 @@ def _clean(text: str) -> str:
     return text.replace("\x00", "").replace("\r\n", "\n").replace("\r", "\n")
 
 
+def _shape_texts(shapes: Iterable[BaseShape]) -> Iterator[str]:
+    for shape in shapes:
+        if isinstance(shape, GroupShape):
+            yield from _shape_texts(shape.shapes)
+        elif isinstance(shape, GraphicFrame) and shape.has_table:
+            for row in shape.table.rows:
+                yield " ".join(cell.text for cell in row.cells if not cell.is_spanned)
+        elif shape.has_text_frame:
+            yield shape.text_frame.text.replace("\v", "\n")
+
+
 class DocExtractor:
     @staticmethod
     def supports(mime: str, kind: AssetKind) -> bool:
@@ -111,11 +132,13 @@ class DocExtractor:
         return mime in _SUPPORTED.get(kind, frozenset())
 
     def extract(self, asset: Asset, data: BinaryIO) -> Extraction:
-        """PDF는 쪽(1부터), TXT와 MD는 한 덩어리(1쪽)로 텍스트를 뽑아 조각으로 나눈다."""
+        """PDF와 PPTX는 페이지 순서대로, 텍스트 파일은 한 페이지로 나눈다."""
         if not self.supports(asset.mime, asset.kind):
             raise CorruptDocument("텍스트를 뽑을 수 없는 형식이에요.")
         if asset.mime == PDF_MIME:
             pages = self._pdf_pages(data)
+        elif asset.mime == PPTX_MIME:
+            pages = self._pptx_pages(data)
         else:
             pages = [self._plain_text(data)]
         chunks = [
@@ -123,9 +146,35 @@ class DocExtractor:
             for number, text in enumerate(pages, start=1)
             for part, piece in enumerate(split_text(_clean(text)))
         ]
-        return Extraction(chunks)
+        return Extraction(chunks, page_count=len(pages))
 
     # ------------------------------------------------------------------ 형식별 읽기
+
+    def _pptx_pages(self, data: BinaryIO) -> list[str]:
+        try:
+            with ZipFile(data) as archive:
+                parts = archive.infolist()
+                if (
+                    len(parts) > _MAX_PPTX_PARTS
+                    or sum(part.file_size for part in parts) > _MAX_PPTX_EXPANDED_BYTES
+                ):
+                    raise PayloadTooLarge("PPTX 압축을 풀었을 때 자료의 크기 한도를 넘어요.")
+            data.seek(0)
+            return ["\n".join(_shape_texts(slide.shapes)) for slide in Presentation(data).slides]
+        except (
+            BadZipFile,
+            PackageNotFoundError,
+            XMLSyntaxError,
+            zlib.error,
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            IndexError,
+            AttributeError,
+            RuntimeError,
+        ) as exc:
+            raise CorruptDocument("PPTX 파일이 깨졌거나 읽을 수 없어요.") from exc
 
     def _pdf_pages(self, data: BinaryIO) -> list[str]:
         try:

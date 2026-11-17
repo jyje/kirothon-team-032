@@ -10,10 +10,21 @@ from datetime import date
 from typing import Final
 
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select, update
 
 from open_attendee.errors import ConsentRequired, NotFound, ValidationFailed
-from open_attendee.models import Asset, AssetKind, ConsentRecord, EventSession, utcnow
+from open_attendee.models import (
+    Asset,
+    AssetKind,
+    ConsentRecord,
+    Draft,
+    EventSession,
+    Job,
+    JobKind,
+    JobStatus,
+    LiveSummary,
+    utcnow,
+)
 
 __all__ = ["METHOD_MAX", "ConsentForm", "ConsentGate", "ConsentRequired", "is_valid_consent"]
 
@@ -39,6 +50,50 @@ def is_valid_consent(record: ConsentRecord, session_id: str) -> bool:
         and record.can_document
         and record.no_outside_disclosure
     )
+
+
+RESULT_CONSENT_MESSAGE = "철회된 녹음 동의 때문에 이 결과를 열 수 없어요."
+
+
+def require_result_consent(db: Session, session_id: str, consent_ids: list[str]) -> None:
+    if not consent_ids:
+        return
+    records = select(ConsentRecord).where(ConsentRecord.session_id == session_id)
+    valid = {
+        record.id
+        for record in db.exec(
+            records.where(col(ConsentRecord.id).in_(consent_ids)).execution_options(
+                populate_existing=True
+            )
+        )
+        if is_valid_consent(record, session_id)
+    }
+    if valid != set(consent_ids):
+        raise ConsentRequired(RESULT_CONSENT_MESSAGE)
+
+
+def result_consent_blocked(db: Session, result: Draft | LiveSummary) -> bool:
+    if result.consent_ids is None:
+        if isinstance(result, Draft) and not result.uses_recording:
+            return False
+        # 이전 결과는 인용 내역만 남으므로 프롬프트에 포함됐던 모든 음성을 확인할 수 없다.
+        return (
+            db.exec(
+                select(ConsentRecord.id)
+                .where(
+                    ConsentRecord.session_id == result.session_id,
+                    col(ConsentRecord.created_at) <= result.created_at,
+                    col(ConsentRecord.revoked_at).is_not(None),
+                )
+                .limit(1)
+            ).first()
+            is not None
+        )
+    try:
+        require_result_consent(db, result.session_id, result.consent_ids)
+    except ConsentRequired:
+        return True
+    return False
 
 
 class ConsentGate:
@@ -67,17 +122,48 @@ class ConsentGate:
         self.db.refresh(record)
         return record
 
+    def list_records(self, owner_id: str, session_id: str) -> list[ConsentRecord]:
+        self._owned_session(owner_id, session_id)
+        return list(
+            self.db.exec(
+                select(ConsentRecord)
+                .where(ConsentRecord.session_id == session_id)
+                .order_by(col(ConsentRecord.created_at).desc(), col(ConsentRecord.id).desc())
+            )
+        )
+
     def revoke(self, owner_id: str, consent_id: str) -> ConsentRecord:
         """철회 시각을 기록한다. 이미 철회된 기록은 처음 시각을 그대로 둔다."""
         record = self.db.get(ConsentRecord, consent_id)
         if record is None:
             raise NotFound("동의 기록을 찾을 수 없어요.")
         self._owned_session(owner_id, record.session_id)
-        if record.revoked_at is None:
-            record.revoked_at = utcnow()
-            self.db.add(record)
-            self.db.commit()
-            self.db.refresh(record)
+        self.db.exec(
+            update(ConsentRecord)
+            .where(col(ConsentRecord.id) == consent_id, col(ConsentRecord.revoked_at).is_(None))
+            .values(revoked_at=utcnow())
+        )
+        affected_audio = select(Asset.id).where(
+            Asset.session_id == record.session_id, Asset.consent_id == consent_id
+        )
+        self.db.exec(
+            update(Job)
+            .where(
+                col(Job.owner_id) == owner_id,
+                col(Job.session_id) == record.session_id,
+                col(Job.kind) == JobKind.TRANSCRIBE,
+                col(Job.status).in_((JobStatus.QUEUED, JobStatus.RUNNING)),
+                col(Job.payload)["asset_id"].as_string().in_(affected_audio),
+            )
+            .values(
+                status=JobStatus.FAILED,
+                last_error="consent_required",
+                claimed_by=None,
+                claimed_at=None,
+            )
+        )
+        self.db.commit()
+        self.db.refresh(record)
         return record
 
     # ------------------------------------------------------------------ 판정
@@ -94,6 +180,13 @@ class ConsentGate:
         if record is None or not is_valid_consent(record, asset.session_id):
             raise ConsentRequired("유효한 녹음 동의 기록이 필요해요.")
         return record
+
+    def access_blocked(self, asset: Asset) -> bool:
+        try:
+            self.require_consent(asset)
+        except ConsentRequired:
+            return True
+        return False
 
     # ------------------------------------------------------------------ 내부
     def _owned_session(self, owner_id: str, session_id: str) -> EventSession:
