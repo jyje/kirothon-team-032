@@ -71,7 +71,9 @@ function applyRevocation() {
 }
 
 function addRecording(asset: Asset) {
-  assets.value.push(asset)
+  const index = assets.value.findIndex(current => current.id === asset.id)
+  if (index < 0) assets.value.push(asset)
+  else assets.value[index] = asset
   emit('changed')
 }
 
