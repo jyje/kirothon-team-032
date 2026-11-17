@@ -51,6 +51,7 @@ test('동의 확인 후 마이크를 열고 화면을 이동하면 마이크를 
   await nav.getByRole('link', { name: '필기', exact: true }).click()
   await expect(page.locator('html')).toHaveAttribute('data-microphone-released', 'true')
   await nav.getByRole('link', { name: '자료', exact: true }).click()
+  await expect(page.getByRole('status', { name: '' }).filter({ hasText: '녹음이 끝났어요.' })).toBeVisible()
   const save = page.getByRole('button', { name: '녹음 저장', exact: true })
   const uploaded = page.waitForResponse(res => res.url().endsWith('/assets') &&
     res.request().method() === 'POST')
@@ -160,3 +161,69 @@ test('녹음 저장 성공 응답을 잃어도 재시도하면 첨부가 하나�
   expect(response.status()).toBe(200)
   expect((await response.body()).subarray(0, 4).toString('hex')).toBe('1a45dfa3')
 })
+
+for (const hasAudio of [true, false]) {
+  test(`마이크가 끊기면 ${hasAudio ? '중단 전 녹음을 저장할 수 있다' : '다시 녹음할 수 있다'}`, async ({ page, context }) => {
+    await context.setExtraHTTPHeaders({ 'X-Forwarded-For': hasAudio ? '192.0.2.81' : '192.0.2.82' })
+    await context.grantPermissions(['microphone'])
+    await page.addInitScript(({ hasAudio }) => {
+      const request = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+      navigator.mediaDevices.getUserMedia = async constraints => {
+        const stream = await request(constraints)
+        document.addEventListener('disconnect-test-microphone', () => {
+          for (const track of stream.getAudioTracks()) {
+            track.stop()
+            track.dispatchEvent(new Event('ended'))
+          }
+        }, { once: true })
+        return stream
+      }
+      const start = MediaRecorder.prototype.start
+      MediaRecorder.prototype.start = function (timeslice) {
+        if (hasAudio) {
+          this.addEventListener('dataavailable', event => {
+            if (event.data.size) document.documentElement.dataset.microphoneData = 'true'
+          })
+        } else {
+          this.ondataavailable = null
+        }
+        start.call(this, timeslice)
+      }
+    }, { hasAudio })
+    await login(page)
+    const event = await createEvent(page, '마이크 중단')
+    const path = '/api' + new URL(event).pathname
+    const { csrf_token: csrf } = await (await page.request.get('/api/csrf')).json()
+    const consent = await page.request.post(path + '/consents', {
+      headers: { 'X-CSRF-Token': csrf },
+      form: {
+        informed_all: 'true', can_document: 'true', no_outside_disclosure: 'true',
+        obtained_on: '2026-11-17', method: '합성 마이크 중단 테스트',
+      },
+    })
+    expect(consent.status()).toBe(201)
+    await page.goto(event + '#assets')
+    await page.reload()
+    const recording = page.getByRole('region', { name: '행사 녹음' })
+    await recording.getByRole('combobox', { name: '사용할 녹음 동의' }).selectOption((await consent.json()).id)
+    const start = recording.getByRole('button', { name: '녹음 시작', exact: true })
+    const save = recording.getByRole('button', { name: '녹음 저장', exact: true })
+    await start.click()
+    await expect(recording.getByRole('status')).toHaveText('녹음 중')
+    if (hasAudio) await expect(page.locator('html')).toHaveAttribute('data-microphone-data', 'true')
+    await page.evaluate(() => document.dispatchEvent(new Event('disconnect-test-microphone')))
+
+    if (hasAudio) {
+      await expect(recording.getByRole('alert')).toContainText('중단 전까지 기록한 부분을 저장할 수 있어요.')
+      await save.click()
+      await expect(recording.getByRole('status')).toHaveText('녹음을 저장했어요.')
+      await expect(page.getByRole('link', { name: '녹음 내려받기', exact: true })).toHaveCount(1)
+    } else {
+      await expect(recording.getByRole('alert')).toContainText('마이크를 확인하고 다시 녹음해 주세요.')
+      await expect(save).toHaveCount(0)
+      await start.click()
+      await expect(recording.getByRole('status')).toHaveText('녹음 중')
+      await expect(recording.getByRole('alert')).toHaveCount(0)
+    }
+  })
+}
