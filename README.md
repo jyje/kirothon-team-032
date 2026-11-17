@@ -192,6 +192,8 @@ Playwright 테스트는 실제 프런트엔드 빌드와 임시 FastAPI·SQLite�
 
 **자료** 화면의 **녹음 동의**에서 행사별 동의 날짜와 방법을 기록하고 철회할 수 있습니다. 철회한 동의는 새 녹음 자료를 올리는 데 사용할 수 없습니다. [#64](https://github.com/jyje/open-attendee/issues/64)
 
+[한국 행사 녹음과 전사 자료 안내](docs/recording-privacy-kr.md)에 녹음, 전사, 모델 전송, 공개 기준과 배포별로 확인할 항목을 정리했습니다. [#85](https://github.com/jyje/open-attendee/issues/85)
+
 동의를 철회하면 연결된 음성 다운로드와 전사 조회가 차단되고, 대기 중이거나 실행 중인 전사 요청이 취소됩니다. 해당 음성을 입력으로 사용한 요약·초안은 조회와 내보내기가 차단되며, 유효한 자료로 다시 만들 수 있습니다. 전체 출처가 저장되지 않은 예전 결과는 영향 범위를 확인할 수 없으면 접근을 제한합니다. 원본과 전사는 저장된 자료의 **지우기**로, 저장된 요약·초안은 **행사 삭제**로 제거할 수 있습니다. 이미 내보낸 파일은 받은 곳에서 별도로 관리해야 합니다. [#65](https://github.com/jyje/open-attendee/issues/65)
 
 녹음이 켜진 환경의 **자료** 화면에서 행사 동의를 선택하면 브라우저로 녹음을 시작하고 중지한 뒤 저장할 수 있습니다. [#67](https://github.com/jyje/open-attendee/issues/67)
@@ -228,7 +230,7 @@ AI 문장을 수정하면 기존 연결 출처를 다시 확인합니다. 판정
 **로드맵 (아직 반영하지 않음)**
 - 실제 기기의 장시간 마이크 녹음과 중단 복구 검증. [#68](https://github.com/jyje/open-attendee/issues/68)
 - 수작업과 앱의 정리 시간 및 결과 품질 비교. [측정 절차와 합성 자료](docs/validation/event-summary-benchmark.md)를 준비했고, 사람의 작업 시간과 품질 측정이 남아 있습니다. [#62](https://github.com/jyje/open-attendee/issues/62)
-- 녹음 법률 검토, 데이터 보관 기간 정책.
+- 데이터 보관 기간과 삭제 정책. [#84](https://github.com/jyje/open-attendee/issues/84)
 - 여러 사용자와 공유, AWS GPU 전사. 이번 범위 밖입니다.
 
 ---
