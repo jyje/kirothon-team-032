@@ -41,7 +41,7 @@
 
 ## 2. 핵심 기능
 
-웹에서 필기하고, 녹음은 STT 모델로 글로 바꾸고, 사진과 자료를 첨부합니다. AI 에이전트가 이 기록을 요약하고 정리해 초안을 만듭니다. 이때 초안의 모든 문장에는 출처(어느 메모, 어느 쪽, 어느 사진)를 붙이고, 출처로 확인되지 않은 문장은 "미검증"으로 표시해서 사람이 검토하기 전에는 내보내지 않습니다.
+웹에서 필기하고, 녹음은 STT 모델로 글로 바꾸고, 사진과 자료를 첨부합니다. AI 에이전트가 이 기록을 요약하고 정리해 초안을 만듭니다. 초안에는 AI가 연결한 출처(메모, 문서의 쪽이나 슬라이드, 사진 설명, 전사 구간)를 표시합니다. 근거가 없거나 확인되지 않은 문장은 사람이 검토해야 초안을 승인하고 내보낼 수 있습니다.
 
 | 기능 | 해결하는 불편 | 상태 | 코드 위치 |
 |---|---|---|---|
@@ -50,11 +50,11 @@
 | 발표자료(PDF·PPTX) 첨부와 페이지별 텍스트 추출 (30MB까지) | 자료를 직접 읽고 요약해야 함 | **동작** | [`processors/docs.py`](webapp/src/open_attendee/processors/docs.py), [`assets.py`](webapp/src/open_attendee/assets.py) |
 | 참고자료 받기 (PDF, TXT, MD) | 흩어진 참고자료를 따로 찾아야 함 | **동작** (URL 가져오기는 구현 전) | [`assets.py`](webapp/src/open_attendee/assets.py) |
 | 녹음과 STT 전사 (동의 확인 후에만 처리) | 3~4시간 녹음을 직접 정리해야 함 | **녹음과 로컬 전사 구현**, 기본 설정에서 꺼져 있음 | [`consent.py`](webapp/src/open_attendee/consent.py) |
-| AI 요약, 초안 (모든 문장에 출처, 출처가 뒷받침하는지 AI가 한 번 더 확인) | 요약에 시간이 많이 듦 | **동작** (요청 안에서 동기 실행) | [`llm.py`](webapp/src/open_attendee/llm.py), [`drafts.py`](webapp/src/open_attendee/drafts.py), [`SummaryPanel.vue`](webapp/frontend/src/components/SummaryPanel.vue) |
-| 원하는 템플릿 선택, 저장, 재사용 | 원하는 형태로 정리하는 기능이 부족함 | 블로그 템플릿 1개만 고정, 선택·저장은 구현 전 | |
+| AI 요약·초안 (출처 연결과 근거 판정) | 요약에 시간이 많이 듦 | **동작** (SQLite 작업 큐, 화면에서 작업 상태 갱신) | [`jobs.py`](webapp/src/open_attendee/jobs.py), [`drafts.py`](webapp/src/open_attendee/drafts.py), [`SummaryPanel.vue`](webapp/frontend/src/components/SummaryPanel.vue) |
+| 원하는 템플릿 선택, 저장, 재사용 | 원하는 형태로 정리하는 기능이 부족함 | **동작** (블로그·LinkedIn 기본 템플릿, 사용자 템플릿 복제와 저장) | [`TemplatesView.vue`](webapp/frontend/src/views/TemplatesView.vue), [`templates.py`](webapp/src/open_attendee/templates.py) |
 | 인사이트 추가와 최종 검토 (미검증 문장 처리, 사람만 승인, 승인한 초안만 내보내기) | AI 요약만으로는 내 생각이 빠짐 | **동작** (마크다운·HTML) | [`DraftPanel.vue`](webapp/frontend/src/components/DraftPanel.vue), [`drafts.py`](webapp/src/open_attendee/drafts.py) |
 
-설치 환경은 맥북, 모바일(반응형 웹), AWS, 온프레미스입니다. 자세한 방법은 6절에 씁니다.
+데스크톱과 모바일 브라우저에서 반응형 웹으로 사용합니다. 로컬 개발과 온프레미스 Kubernetes 배포는 6절에 안내합니다.
 
 ### 구조
 
@@ -73,7 +73,7 @@ FastAPI 서버 ─ SQLite (SQLModel) ─ 파일 저장소 (로컬 볼륨 또는 
 
 ### 개인정보와 보안 기본값
 
-- **녹음은 동의 기록이 있어야만 처리합니다.** 서버가 파일을 저장하기 전에 동의 상태를 확인합니다. 본인 혼자 말한 음성 메모만 예외입니다. 지금 배포에서는 녹음 기능 자체가 꺼져 있습니다(`FEATURE_RECORDING=false`).
+- **녹음은 동의 기록이 있어야만 처리합니다.** 서버가 파일을 저장하기 전에 동의 상태를 확인합니다. 본인 혼자 말한 음성 메모만 예외입니다. 기본 배포 설정에서는 녹음이 꺼져 있습니다(`FEATURE_RECORDING=false`).
 - **사진의 위치 정보(EXIF)는 저장하지 않습니다.** 촬영 시각만 남깁니다.
 - 소유자 1명의 비밀번호(argon2 해시)로 로그인하고, 로그인 시도는 접속자 IP별로 분당 5회까지 받으며, 쓰기 요청은 CSRF 토큰을 검사합니다.
 - 비밀 값은 환경 변수와 Kubernetes Secret으로만 받고, 저장소와 이미지에는 넣지 않으며 로그에서는 가립니다.
@@ -83,16 +83,16 @@ FastAPI 서버 ─ SQLite (SQLModel) ─ 파일 저장소 (로컬 볼륨 또는 
 ## 3. 사용 시나리오
 
 1. 발표를 들으며 웹에 필기하고, 사진과 발표자료를 첨부합니다. 녹음이 켜진 환경에서는 동의를 선택하고 브라우저에서 녹음합니다.
-2. AI 에이전트가 기록을 요약하고, 블로그 템플릿에 맞춰 출처가 붙은 초안을 만듭니다.
+2. AI 에이전트가 기록을 요약하고, 선택한 템플릿에 맞춰 출처가 붙은 초안을 만듭니다.
 3. 사용자가 초안에 자기 인사이트를 더하고, 미검증 문장을 처리한 뒤 승인하고, 마크다운이나 HTML로 내려받습니다.
 
 ## 4. 기대 효과
 
 - **서비스 10개 이상 → 1개**: 필기, 사진, PDF, 요약, 내보내기를 한곳에서 합니다.
 - **새 구독료 없음**: 내 AWS, 내 서버, 내 AI 키를 씁니다. 사용료는 따로 듭니다.
-- **믿을 수 있는 요약**: 모든 문장에 출처가 붙고, 확인되지 않은 문장은 표시됩니다.
+- **출처가 있는 요약**: 각 요약 항목의 출처를 표시하고, 초안에서 근거가 확인되지 않은 문장을 알려줍니다.
 - **개인정보 보호**: 사진 위치 정보는 지우고, 동의 없는 녹음은 처리하지 않습니다.
-- **어디서든 실행**: 이미지 하나로 맥북, AWS, 온프레미스에서 돕니다.
+- **컨테이너 실행**: 컨테이너 이미지 하나로 로컬 개발이나 온프레미스 Kubernetes에 배포할 수 있습니다.
 
 정리 시간 목표는 30분 이내입니다. 새로 승인한 초안에는 마지막 필기 수정이나 자료 추가부터 승인까지의 경과 시간이 표시됩니다. 대기 시간도 포함되며, 수작업과 같은 자료로 비교한 결과는 [#62](https://github.com/jyje/open-attendee/issues/62)에서 추적합니다.
 
@@ -101,7 +101,7 @@ FastAPI 서버 ─ SQLite (SQLModel) ─ 파일 저장소 (로컬 볼륨 또는 
 - 여러 플랫폼에 흩어진 기능을 한곳에서 씁니다.
 - 새 구독료 대신 내 AWS, 온프레미스, AI 구독을 씁니다.
 - 내게 필요한 세부 기능을 직접 정합니다.
-- 초안의 모든 문장에 출처를 붙이고, 확인되지 않은 문장은 사람이 처리하기 전에는 내보내지 않습니다.
+- 초안 문장의 연결 출처와 검증 상태를 보여 주고, 사람의 승인 후에 내보냅니다.
 
 ---
 
@@ -142,7 +142,7 @@ cp webapp/.env.example webapp/.env     # 값을 채웁니다
 docker compose up --build              # http://localhost:8080
 ```
 
-### Kubernetes (microk8s, AWS, 온프레미스)
+### 온프레미스 Kubernetes (microk8s)
 
 `main`(과 `dev`, `stg`, `prd`)에 머지되면 GitHub Actions가 amd64와 arm64 이미지를 만들어 `r<번호>-<커밋>` 태그로 올립니다. `main`과 `dev`는 `ghcr.io/jyje/open-attendee-dev`, `stg`는 `-stg`, `prd`는 `ghcr.io/jyje/open-attendee`입니다. 차트의 기본 이미지는 `prd`용이라서 개발 이미지는 `--set image.repository=...`로 바꿉니다.
 
@@ -227,7 +227,7 @@ AI 문장을 수정하면 기존 연결 출처를 다시 확인합니다. 판정
 - `helm/`: 설정은 ConfigMap, 비밀은 미리 만든 Secret 참조, 데이터는 PVC, `/healthz` 확인, 복제본 1개.
 - 환경별 Helm 값 파일은 `dev`, `stg`, `prd`에서 각각 발행한 이미지를 선택합니다. [#59](https://github.com/jyje/open-attendee/issues/59)
 - CI: `ci.yml`(테스트, 린트, 화면 빌드, helm lint), `build.yml`(브랜치별 이미지, 불변 태그).
-- microk8s에 맞춘 값: 기본 저장소가 NFS라서 SQLite를 `delete` 저널로 사용, 인그레스 `nginx`와 `nginx-letsencrypt-prod`, 업로드 본문 32m, 인그레스 뒤 접속자 IP별 로그인 제한(`FORWARDED_ALLOW_IPS`).
+- microk8s에 맞춘 값: 기본 저장소가 NFS라서 SQLite를 `delete` 저널로 사용, 인그레스 `nginx`와 `nginx-letsencrypt-prod`, 기본 업로드 본문 32 MiB(녹음 사용 시 2050 MiB), 인그레스 뒤 접속자 IP별 로그인 제한(`FORWARDED_ALLOW_IPS`).
 
 **로드맵 (아직 반영하지 않음)**
 - 실제 기기의 장시간 마이크 녹음과 중단 복구 검증. [합성 마이크 결과와 실기기 절차](docs/validation/recording-devices.md)를 기록했습니다. [#68](https://github.com/jyje/open-attendee/issues/68)
