@@ -5,6 +5,7 @@
 - 설치 환경: **웹앱**만 지원해요.
 - 작업 공간: 사이드바에서 내 행사와 필기·자료·AI 요약·초안으로 이동해요. 작은 화면에서는 메뉴를 접을 수 있어요. [#35](https://github.com/jyje/open-attendee/issues/35)
 - 행사별 보관 설정에 따라 전사 구간을 저장한 뒤 음성 원본을 삭제해요. [#71](https://github.com/jyje/open-attendee/issues/71)
+- [데이터 보관과 삭제 안내](data-retention.md)에 자료별 보관·삭제 동작을 정리했어요. 보관 일수와 백업 만료는 배포별로 정해요. [#84](https://github.com/jyje/open-attendee/issues/84)
 - 로컬 전사기가 설정된 환경에서는 녹음의 시간 구간을 보고 요약·초안의 출처로 사용할 수 있어요. [#70](https://github.com/jyje/open-attendee/issues/70)
 - 녹음이 켜진 환경에서는 자료 화면에서 행사 동의를 선택해 브라우저로 녹음하고 저장할 수 있어요. [#67](https://github.com/jyje/open-attendee/issues/67)
 - 자료 화면에서 행사별 녹음 동의를 저장하고 철회할 수 있어요. [#64](https://github.com/jyje/open-attendee/issues/64)
@@ -32,7 +33,6 @@
 |---|---|---|
 | 행사 정리 시간 비교 | 측정 대기 | [측정 절차와 합성 자료](validation/event-summary-benchmark.md)로 사람의 수작업과 앱 사용을 비교해요. [#62](https://github.com/jyje/open-attendee/issues/62) |
 | 실제 기기의 장시간 마이크 녹음 | 예정 | 긴 캡처, 화면 잠금 및 연결 중단 시 동작을 확인해요. [#68](https://github.com/jyje/open-attendee/issues/68) |
-| 데이터 보관 기간과 삭제 정책 | 예정 | 자료 종류별 보관과 삭제 조건을 정리해요. [#84](https://github.com/jyje/open-attendee/issues/84) |
 | macOS (맥북) 지원 | 예정 | 지금은 웹앱만 제공해요. |
 | iOS 지원 | 예정 | 지금은 웹앱만 제공해요. |
 | AWS EKS 레시피 | 예정 | 같은 Helm 차트를 EKS에 올리는 방법을 정리해요. |
