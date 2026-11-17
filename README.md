@@ -227,7 +227,7 @@ AI 문장을 수정하면 기존 연결 출처를 다시 확인합니다. 판정
 
 **로드맵 (아직 반영하지 않음)**
 - 실제 기기의 장시간 마이크 녹음과 중단 복구 검증. [#68](https://github.com/jyje/open-attendee/issues/68)
-- 수작업과 앱의 정리 시간 및 결과 품질 비교. [#62](https://github.com/jyje/open-attendee/issues/62)
+- 수작업과 앱의 정리 시간 및 결과 품질 비교. [측정 절차와 합성 자료](docs/validation/event-summary-benchmark.md)를 준비했고, 사람의 작업 시간과 품질 측정이 남아 있습니다. [#62](https://github.com/jyje/open-attendee/issues/62)
 - 녹음 법률 검토, 데이터 보관 기간 정책.
 - 여러 사용자와 공유, AWS GPU 전사. 이번 범위 밖입니다.
 
