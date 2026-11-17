@@ -230,7 +230,7 @@ AI 문장을 수정하면 기존 연결 출처를 다시 확인합니다. 판정
 - microk8s에 맞춘 값: 기본 저장소가 NFS라서 SQLite를 `delete` 저널로 사용, 인그레스 `nginx`와 `nginx-letsencrypt-prod`, 업로드 본문 32m, 인그레스 뒤 접속자 IP별 로그인 제한(`FORWARDED_ALLOW_IPS`).
 
 **로드맵 (아직 반영하지 않음)**
-- 실제 기기의 장시간 마이크 녹음과 중단 복구 검증. [#68](https://github.com/jyje/open-attendee/issues/68)
+- 실제 기기의 장시간 마이크 녹음과 중단 복구 검증. [합성 마이크 결과와 실기기 절차](docs/validation/recording-devices.md)를 기록했습니다. [#68](https://github.com/jyje/open-attendee/issues/68)
 - 수작업과 앱의 정리 시간 및 결과 품질 비교. [측정 절차와 합성 자료](docs/validation/event-summary-benchmark.md)를 준비했고, 사람의 작업 시간과 품질 측정이 남아 있습니다. [#62](https://github.com/jyje/open-attendee/issues/62)
 - 여러 사용자와 공유, AWS GPU 전사. 이번 범위 밖입니다.
 
