@@ -28,6 +28,7 @@ from uuid import uuid4
 import cv2
 from PIL import Image
 from sqlalchemy import delete, func
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from open_attendee.config import Settings
@@ -48,6 +49,7 @@ from open_attendee.models import (
     Job,
     JobKind,
     MemoBlock,
+    RecordingUpload,
     TranscriptSegment,
 )
 from open_attendee.processors.docs import PPTX_MIME, DocExtractor
@@ -271,6 +273,8 @@ class AssetService:
         stream: BinaryIO,
         consent_id: str | None = None,
         solo_voice: bool = False,
+        *,
+        recording_upload_id: str | None = None,
     ) -> Asset:
         """검사를 모두 통과한 파일만 저장한다.
 
@@ -281,6 +285,8 @@ class AssetService:
         """
         self._session(owner_id, session_id)
         label = KIND_LABELS[kind]
+        if recording_upload_id is not None and kind is not AssetKind.RECORDING:
+            raise ValidationFailed("녹음 저장 ID는 행사 녹음에만 사용할 수 있어요.")
         if kind is AssetKind.RECORDING and (
             not self.settings.feature_recording or self.settings.transcriber == "none"
         ):
@@ -299,6 +305,11 @@ class AssetService:
         else:
             asset.consent_id = None
 
+        if recording_upload_id is not None:
+            saved = self._uploaded_recording(asset, recording_upload_id)
+            if saved is not None:
+                return saved
+
         self._check_count(session_id, kind, label)
         with _bounded(stream, SIZE_LIMITS[kind], label) as (source, size):
             head = source.read(_SNIFF_BYTES)
@@ -312,7 +323,22 @@ class AssetService:
                 return self._store_photo(owner_id, asset, source)
             if kind in (AssetKind.SLIDES, AssetKind.REFERENCE):
                 return self._store_document(owner_id, asset, source)
+            if recording_upload_id is not None:
+                return self._store_recording(owner_id, asset, source, recording_upload_id)
             return self._store_audio(owner_id, asset, source)
+
+    def _uploaded_recording(self, asset: Asset, upload_id: str) -> Asset | None:
+        upload = self.db.get(RecordingUpload, (asset.session_id, upload_id))
+        if upload is None:
+            return None
+        saved = self.db.get(Asset, upload.asset_id)
+        if saved is None:
+            # 이미 지운 녹음을 늦게 도착한 재시도가 복원할 수 없다.
+            raise NotFound("이 요청으로 저장한 녹음이 삭제됐어요.")
+        if saved.consent_id != asset.consent_id or saved.display_name != asset.display_name:
+            raise ValidationFailed("이 녹음 저장 ID는 다른 녹음에 사용됐어요.")
+        self.gate.require_consent(saved)
+        return saved
 
     def _check_count(self, session_id: str, kind: AssetKind, label: str) -> None:
         limit = COUNT_LIMITS.get(kind)
@@ -354,6 +380,31 @@ class AssetService:
         asset.status = AssetStatus.STORED
         key = make_key(owner_id, asset.session_id, asset.id)
         return self._commit(asset, {key: source})
+
+    def _store_recording(
+        self, owner_id: str, asset: Asset, source: BinaryIO, upload_id: str
+    ) -> Asset:
+        key = make_key(owner_id, asset.session_id, asset.id)
+        upload = RecordingUpload(session_id=asset.session_id, id=upload_id, asset_id=asset.id)
+        try:
+            with self._write_files({key: source}):
+                # 대용량 파일 저장이 끝난 뒤 짧게 쓰기를 잠그고 행사와 동의를 다시 확인한다.
+                self.db.rollback()
+                self.db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+                self._session(owner_id, asset.session_id)
+                self.gate.require_consent(asset)
+                asset.blob_key = key
+                self.db.add_all([asset, upload])
+                self.db.commit()
+        except IntegrityError:
+            # 동시 재시도가 이긴 경우 임시로 쓴 파일은 정리되고 먼저 저장한 자료를 반환한다.
+            self._session(owner_id, asset.session_id)
+            saved = self._uploaded_recording(asset, upload_id)
+            if saved is None:
+                raise
+            return saved
+        self.db.refresh(asset)
+        return asset
 
     def _commit(
         self,

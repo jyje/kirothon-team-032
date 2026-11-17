@@ -16,7 +16,7 @@ const validRecords = computed(() => props.records.filter(record => !record.revok
 const status = ref<'idle' | 'requesting' | 'recording' | 'stopping' | 'saving'>('idle')
 const error = ref('')
 const notice = ref('')
-const pending = shallowRef<{ file: File; consentId: string } | null>(null)
+const pending = shallowRef<{ file: File; consentId: string; uploadId: string } | null>(null)
 
 type Capture = { recorder: MediaRecorder; consentId: string }
 let capture: Capture | null = null
@@ -109,7 +109,11 @@ async function start() {
       }
       const extension = mime === 'audio/mp4' ? 'm4a' : 'webm'
       const filename = `녹음-${new Date().toISOString().replaceAll(':', '-')}.${extension}`
-      pending.value = { file: new File(chunks, filename, { type: recorder.mimeType || mime }), consentId }
+      pending.value = {
+        file: new File(chunks, filename, { type: recorder.mimeType || mime }),
+        consentId,
+        uploadId: crypto.randomUUID(),
+      }
     }
 
     recorder.start(1000)
@@ -128,10 +132,11 @@ async function start() {
 
 async function save() {
   if (!pending.value || status.value !== 'idle') return
-  const { file, consentId } = pending.value
+  const { file, consentId, uploadId } = pending.value
   const form = new FormData()
   form.append('kind', 'recording')
   form.append('consent_id', consentId)
+  form.append('recording_upload_id', uploadId)
   form.append('file', file)
   status.value = 'saving'
   error.value = ''

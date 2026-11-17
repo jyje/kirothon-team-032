@@ -26,6 +26,7 @@ from open_attendee.models import (
     Job,
     LiveSummary,
     MemoBlock,
+    RecordingUpload,
     Sentence,
     TranscriptSegment,
     utcnow,
@@ -130,7 +131,7 @@ class SessionService:
         self.db.exec(delete(TranscriptSegment).where(TranscriptSegment.asset_id.in_(asset_ids)))
         self.db.exec(delete(Fact).where(Fact.draft_id.in_(draft_ids)))
         self.db.exec(delete(Sentence).where(Sentence.draft_id.in_(draft_ids)))
-        for table in (Asset, ConsentRecord, MemoBlock, Draft, LiveSummary, Job):
+        for table in (RecordingUpload, Asset, ConsentRecord, MemoBlock, Draft, LiveSummary, Job):
             self.db.exec(delete(table).where(table.session_id == session_id))
         self.db.delete(event)
         self.db.commit()
