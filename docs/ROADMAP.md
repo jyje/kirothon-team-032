@@ -29,7 +29,7 @@
 
 | 항목 | 상태 | 비고 |
 |---|---|---|
-| 행사 정리 시간 비교 | 예정 | 같은 자료와 결과물 기준으로 수작업과 앱 사용 시간을 비교해요. [#62](https://github.com/jyje/open-attendee/issues/62) |
+| 행사 정리 시간 비교 | 측정 대기 | [측정 절차와 합성 자료](validation/event-summary-benchmark.md)로 사람의 수작업과 앱 사용을 비교해요. [#62](https://github.com/jyje/open-attendee/issues/62) |
 | 실제 기기의 장시간 마이크 녹음 | 예정 | 긴 캡처, 화면 잠금 및 연결 중단 시 동작을 확인해요. [#68](https://github.com/jyje/open-attendee/issues/68) |
 | macOS (맥북) 지원 | 예정 | 지금은 웹앱만 제공해요. |
 | iOS 지원 | 예정 | 지금은 웹앱만 제공해요. |
